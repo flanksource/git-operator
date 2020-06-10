@@ -1,0 +1,13 @@
+domain: flanksource.com
+repo: github.com/flanksource/git-operator
+resources:
+- group: git
+  kind: GitRepository
+  version: v1
+- group: git
+  kind: GitPullRequest
+  version: v1
+- group: git
+  kind: GitBranch
+  version: v1
+version: "2"
