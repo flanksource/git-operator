@@ -5,4 +5,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: flanksource/git-operator
-  newTag: latest
+  newTag: v1
