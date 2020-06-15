@@ -1,0 +1,4 @@
+resources:
+  - bases/git.flanksource.com_gitbranches.yaml
+  - bases/git.flanksource.com_gitpullrequests.yaml
+  - bases/git.flanksource.com_gitrepositories.yaml

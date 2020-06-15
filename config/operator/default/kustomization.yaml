@@ -1,5 +1,5 @@
 # Adds namespace to all resources.
-namespace: git-operator-system
+namespace: platform-system
 
 # Value of this field is prepended to the
 # names of all resources, e.g. a deployment named
@@ -13,7 +13,7 @@ namePrefix: git-operator-
 #  someName: someValue
 
 bases:
-- ../crd
+- ../../crd
 - ../rbac
 - ../manager
 # [WEBHOOK] To enable webhook, uncomment all the sections with [WEBHOOK] prefix including the one in 

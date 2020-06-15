@@ -34,15 +34,15 @@ uninstall: manifests
 	kustomize build config/crd | kubectl delete -f -
 
 static: manifests
-	mkdir -p config/static
-	cd config/manager && kustomize edit set image controller=${IMG}
-	kustomize build config/crd > config/static/crd.yml
-	kustomize build config/default > config/static/operator.yml
+	mkdir -p config/deploy
+	cd config/operator/manager && kustomize edit set image controller=${IMG}
+	kustomize build config/crd > config/deploy/crd.yml
+	kustomize build config/operator/default > config/deploy/operator.yml
 
 # Deploy controller in the configured Kubernetes cluster in ~/.kube/config
 deploy: manifests
-	cd config/manager && kustomize edit set image controller=${IMG}
-	kustomize build config/default | kubectl apply -f -
+	cd config/operator/manager && kustomize edit set image controller=${IMG}
+	kustomize build config/operator/default | kubectl apply -f -
 
 # Generate manifests e.g. CRD, RBAC etc.
 manifests: controller-gen
