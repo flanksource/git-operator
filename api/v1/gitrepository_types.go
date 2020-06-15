@@ -28,7 +28,7 @@ type GitRepositorySpec struct {
 
 // GitRepositoryStatus defines the observed state of GitRepository
 type GitRepositoryStatus struct {
-	LastUpdated metav1.Time `json:"last_updated,omitempty"`
+	LastUpdated metav1.Time `json:"lastUpdated,omitempty"`
 	// The Git SHA1 of the main/master branch
 	Head string `json:"head,omitempty"`
 }

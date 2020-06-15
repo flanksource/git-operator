@@ -61,7 +61,7 @@ spec:
             head:
               description: The Git SHA1 of the main/master branch
               type: string
-            last_updated:
+            lastUpdated:
               format: date-time
               type: string
           type: object

@@ -9,6 +9,26 @@ rules:
 - apiGroups:
   - git.flanksource.com
   resources:
+  - gitpullrequests
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - git.flanksource.com
+  resources:
+  - gitpullrequests/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - git.flanksource.com
+  resources:
   - gitrepositories
   verbs:
   - create

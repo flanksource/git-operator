@@ -1,6 +1,6 @@
 
 # Image URL to use all building/pushing image targets
-IMG ?= controller:latest
+IMG ?= flanksource/git-operator:latest
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
 
@@ -32,6 +32,12 @@ install: manifests
 # Uninstall CRDs from a cluster
 uninstall: manifests
 	kustomize build config/crd | kubectl delete -f -
+
+static: manifests
+	mkdir -p config/static
+	cd config/manager && kustomize edit set image controller=${IMG}
+	kustomize build config/crd > config/static/crd.yml
+	kustomize build config/default > config/static/operator.yml
 
 # Deploy controller in the configured Kubernetes cluster in ~/.kube/config
 deploy: manifests
