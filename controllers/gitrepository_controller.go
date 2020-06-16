@@ -20,9 +20,11 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	gitflanksourcecomv1 "github.com/flanksource/git-operator/api/v1"
 )
@@ -38,10 +40,27 @@ type GitRepositoryReconciler struct {
 // +kubebuilder:rbac:groups=git.flanksource.com,resources=gitrepositories/status,verbs=get;update;patch
 
 func (r *GitRepositoryReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	_ = context.Background()
-	_ = r.Log.WithValues("gitrepository", req.NamespacedName)
+	ctx := context.Background()
+	log := r.Log.WithValues("gitrepository", req.NamespacedName)
 
-	// your logic here
+	repository := &gitflanksourcecomv1.GitRepository{}
+	if err := r.Get(ctx, req.NamespacedName, repository); err != nil {
+		log.Error(err, "Failed to get GitRepository")
+		return reconcile.Result{}, err
+	}
+
+	if repository.Spec.Github == nil {
+		err := errors.Wrapf(ErrGithubFieldMissing, "for GitRepository %s in namespace %s", req.Name, req.Namespace)
+		log.Error(ErrGithubFieldMissing, "invalid repository spec")
+		return reconcile.Result{}, err
+	}
+
+	secretName := repository.Spec.Github.Credentials.Name
+	secretNamespace := repository.Spec.Github.Credentials.Namespace
+	secret, err := getRepositoryCredentials(ctx, r.Client, secretName, secretNamespace)
+	if err != nil {
+		log.Error(err, "failed to get secret %s in namespace %s", secretName, secretNamespace)
+	}
 
 	return ctrl.Result{}, nil
 }
