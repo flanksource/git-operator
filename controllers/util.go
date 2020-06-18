@@ -60,3 +60,7 @@ func getRepositoryName(r gitflanksourcecomv1.GitRepository) string {
 func pullRequestName(repository string, number int) string {
 	return fmt.Sprintf("%s-%d", repository, number)
 }
+
+func branchName(repository string, name string) string {
+	return fmt.Sprintf("%s-%s", repository, name)
+}

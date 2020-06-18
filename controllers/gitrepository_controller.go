@@ -45,6 +45,9 @@ type GitRepositoryReconciler struct {
 // +kubebuilder:rbac:groups=git.flanksource.com,resources=gitrepositories,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=git.flanksource.com,resources=gitrepositories/status,verbs=get;update;patch
 
+// +kubebuilder:rbac:groups=git.flanksource.com,resources=gitbranches,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=git.flanksource.com,resources=gitbranches/status,verbs=get;update;patch
+
 func (r *GitRepositoryReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
 	log := r.Log.WithValues("gitrepository", req.NamespacedName)
@@ -85,9 +88,9 @@ func (r *GitRepositoryReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 		log.Error(err, "failed to reconcile pull requests for", "repository", getRepositoryName(*repository))
 	}
 
-	// if err := r.reconcileBranches(ctx, client, repository); err != nil {
-	// 	log.Error(err, "failed to reconcile branches for", "repository", getRepositoryName(*repository))
-	// }
+	if err := r.reconcileBranches(ctx, client, repository); err != nil {
+		log.Error(err, "failed to reconcile branches for", "repository", getRepositoryName(*repository))
+	}
 
 	return ctrl.Result{}, nil
 }
@@ -157,7 +160,49 @@ func (r *GitRepositoryReconciler) reconcilePullRequests(ctx context.Context, git
 	return nil
 }
 
-func (r *GitRepositoryReconciler) reconcileBranches(ctx context.Context, client *scm.Client, repository *gitflanksourcecomv1.GitRepository) error {
+func (r *GitRepositoryReconciler) reconcileBranches(ctx context.Context, githubClient *scm.Client, repository *gitflanksourcecomv1.GitRepository) error {
+	lastUpdated := repository.Status.LastUpdated.Time
+	log := r.Log.WithValues("gitrepository", fmt.Sprintf("%s/%s", repository.Namespace, repository.Name))
+
+	fmt.Printf("lastUpdated: %s\n", lastUpdated.String())
+
+	githubFetcher := &GithubFetcher{client: githubClient, repository: *repository}
+	ghCrds, err := githubFetcher.BuildBranchCRDsFromGithub(ctx, lastUpdated)
+
+	if err != nil {
+		log.Error(err, "failed to build GitBranch CRD from Github")
+		return err
+	}
+
+	listOptions := &client.MatchingLabels{
+		"git.flanksource.com/repository": repository.Name,
+	}
+
+	k8sCrds := gitflanksourcecomv1.GitBranchList{}
+	if err := r.List(ctx, &k8sCrds, listOptions); err != nil {
+		return err
+	}
+	inK8sByName := map[string]*gitflanksourcecomv1.GitBranch{}
+	for _, k8sCrd := range k8sCrds.Items {
+		inK8sByName[k8sCrd.Spec.BranchName] = k8sCrd.DeepCopy()
+	}
+	for _, ghCrd := range ghCrds {
+		k8sCrd, found := inK8sByName[ghCrd.Spec.BranchName]
+		if !found {
+			if err := r.Client.Create(ctx, &ghCrd); err != nil {
+				log.Error(err, "failed to create GitBranch CRD", "branch", ghCrd.Spec.BranchName)
+				return err
+			}
+		} else if k8sCrd.Status.Head != ghCrd.Status.Head {
+			if err := r.Client.Update(ctx, &ghCrd); err != nil {
+				log.Error(err, "failed to update GitBranch CRD", "branch", ghCrd.Spec.BranchName)
+				return err
+			}
+		} else {
+			log.Info("Branch did not change", "branch", ghCrd.Spec.BranchName)
+		}
+	}
+
 	return nil
 }
 

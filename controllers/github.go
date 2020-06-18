@@ -18,7 +18,6 @@ type GithubFetcher struct {
 }
 
 func (g *GithubFetcher) BuildPRCRDsFromGithub(ctx context.Context, lastUpdated time.Time) ([]gitflanksourcecomv1.GitPullRequest, error) {
-
 	crdPRs := []gitflanksourcecomv1.GitPullRequest{}
 	repoName := getRepositoryName(g.repository)
 
@@ -82,6 +81,51 @@ func (g *GithubFetcher) BuildPRCRDFromGithub(ctx context.Context, pr *scm.PullRe
 			URL:       pr.Link,
 			Author:    pr.Author.Login,
 			Approvers: approvers,
+		},
+	}
+
+	return &crd, nil
+}
+
+func (g *GithubFetcher) BuildBranchCRDsFromGithub(ctx context.Context, lastUpdated time.Time) ([]gitflanksourcecomv1.GitBranch, error) {
+	crdBranches := []gitflanksourcecomv1.GitBranch{}
+	repoName := getRepositoryName(g.repository)
+
+	branches, _, err := g.client.Git.ListBranches(ctx, repoName, scm.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, branch := range branches {
+		branchCrd, err := g.BuildBranchCRDFromGithub(ctx, branch, lastUpdated)
+		if err != nil {
+			return nil, err
+		}
+		crdBranches = append(crdBranches, *branchCrd)
+	}
+
+	return crdBranches, nil
+}
+
+func (g *GithubFetcher) BuildBranchCRDFromGithub(ctx context.Context, branch *scm.Reference, lastUpdated time.Time) (*gitflanksourcecomv1.GitBranch, error) {
+	repositoryName := getRepositoryName(g.repository)
+
+	crd := gitflanksourcecomv1.GitBranch{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      branchName(g.repository.Name, branch.Name),
+			Namespace: g.repository.Namespace,
+			Labels: map[string]string{
+				"git.flanksource.com/repository": g.repository.Name,
+				"git.flanksource.com/branch":     branch.Name,
+			},
+		},
+		Spec: gitflanksourcecomv1.GitBranchSpec{
+			Repository: repositoryName,
+			BranchName: branch.Name,
+		},
+		Status: gitflanksourcecomv1.GitBranchStatus{
+			LastUpdated: metav1.Now(),
+			Head:        branch.Sha,
 		},
 	}
 
