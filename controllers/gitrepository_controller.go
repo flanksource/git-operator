@@ -24,7 +24,6 @@ import (
 	"github.com/jenkins-x/go-scm/scm"
 	"github.com/jenkins-x/go-scm/scm/factory"
 	"github.com/pkg/errors"
-	"gopkg.in/yaml.v2"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
@@ -117,14 +116,19 @@ func (r *GitRepositoryReconciler) reconcilePullRequests(ctx context.Context, git
 
 	inGithubById := map[string]*gitflanksourcecomv1.GitPullRequest{}
 	inK8sById := map[string]*gitflanksourcecomv1.GitPullRequest{}
+	inK8sWithoutId := []*gitflanksourcecomv1.GitPullRequest{}
 	allIds := map[string]bool{}
 	for _, crd := range ghCrds {
 		inGithubById[crd.Spec.ID] = crd.DeepCopy()
 		allIds[crd.Spec.ID] = true
 	}
 	for _, crd := range k8sCrds.Items {
-		inK8sById[crd.Spec.ID] = crd.DeepCopy()
-		allIds[crd.Spec.ID] = true
+		if crd.Spec.ID != "" {
+			inK8sById[crd.Spec.ID] = crd.DeepCopy()
+			allIds[crd.Spec.ID] = true
+		} else {
+			inK8sWithoutId = append(inK8sWithoutId, crd.DeepCopy())
+		}
 	}
 
 	diff := PullRequestDiff{
@@ -138,10 +142,14 @@ func (r *GitRepositoryReconciler) reconcilePullRequests(ctx context.Context, git
 		gh := inGithubById[id]
 		k8s := inK8sById[id]
 
-		yml, _ := yaml.Marshal(gh)
-		fmt.Printf("YAML:\n%s", string(yml))
-
 		if err := diff.Merge(ctx, gh, k8s); err != nil {
+			return err
+		}
+	}
+
+	// Now we go through the GitPullRequests which currently don't have an ID
+	for _, crd := range inK8sWithoutId {
+		if err := diff.Merge(ctx, nil, crd); err != nil {
 			return err
 		}
 	}
