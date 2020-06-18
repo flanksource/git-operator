@@ -3,9 +3,7 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"strconv"
 
-	"github.com/jenkins-x/go-scm/scm"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -61,42 +59,4 @@ func getRepositoryName(r gitflanksourcecomv1.GitRepository) string {
 
 func pullRequestName(repository string, number int) string {
 	return fmt.Sprintf("%s-%d", repository, number)
-}
-
-func buildPullRequestCRDsFromGithub(prs []*scm.PullRequest, repository gitflanksourcecomv1.GitRepository) []gitflanksourcecomv1.GitPullRequest {
-	crdPRs := []gitflanksourcecomv1.GitPullRequest{}
-
-	for _, pr := range prs {
-		crdPRs = append(crdPRs, buildPullRequestCRDFromGithub(pr, repository))
-	}
-
-	return crdPRs
-}
-
-func buildPullRequestCRDFromGithub(pr *scm.PullRequest, repository gitflanksourcecomv1.GitRepository) gitflanksourcecomv1.GitPullRequest {
-	repositoryName := getRepositoryName(repository)
-
-	reviewers := make([]string, len(pr.Reviewers))
-	for i, reviewer := range pr.Reviewers {
-		reviewers[i] = reviewer.Login
-	}
-
-	crd := gitflanksourcecomv1.GitPullRequest{
-		ObjectMeta: metav1.ObjectMeta{Name: pullRequestName(repositoryName, pr.Number), Namespace: repository.Namespace},
-		Spec: gitflanksourcecomv1.GitPullRequestSpec{
-			Repository: repositoryName,
-			ID:         strconv.Itoa(pr.Number),
-			SHA:        pr.Sha,
-			Ref:        pr.Ref,
-			Title:      pr.Title,
-			Fork:       pr.Fork,
-			Reviewers:  reviewers,
-		},
-		Status: gitflanksourcecomv1.GitPullRequestStatus{
-			URL:    pr.Link,
-			Author: pr.Author.Login,
-		},
-	}
-
-	return crd
 }

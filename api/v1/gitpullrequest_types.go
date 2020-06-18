@@ -26,6 +26,9 @@ type GitPullRequestSpec struct {
 	Repository string `json:"repository,omitempty"`
 	ID         string `json:"id,omitempty"`
 	Title      string `json:"title,omitempty"`
+	Body       string `json:"body,omitempty"`
+	Head       string `json:"head,omitempty"`
+	Base       string `json:"base,omitempty"`
 	SHA        string `json:"sha,omitempty"`
 	Ref        string `json:"ref,omitempty"`
 	Fork       string `json:"fork,omitempty"`

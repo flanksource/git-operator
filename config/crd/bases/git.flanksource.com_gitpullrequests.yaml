@@ -34,7 +34,13 @@ spec:
         spec:
           description: GitPullRequestSpec defines the desired state of GitPullRequest
           properties:
+            base:
+              type: string
+            body:
+              type: string
             fork:
+              type: string
+            head:
               type: string
             id:
               type: string

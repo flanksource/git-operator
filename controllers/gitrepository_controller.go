@@ -93,31 +93,57 @@ func (r *GitRepositoryReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	return ctrl.Result{}, nil
 }
 
-func (r *GitRepositoryReconciler) reconcilePullRequests(ctx context.Context, client *scm.Client, repository *gitflanksourcecomv1.GitRepository) error {
-	repoName := getRepositoryName(*repository)
+func (r *GitRepositoryReconciler) reconcilePullRequests(ctx context.Context, githubClient *scm.Client, repository *gitflanksourcecomv1.GitRepository) error {
 	lastUpdated := repository.Status.LastUpdated.Time
+	log := r.Log.WithValues("gitrepository", fmt.Sprintf("%s/%s", repository.Namespace, repository.Name))
 
 	fmt.Printf("lastUpdated: %s\n", lastUpdated.String())
 
-	prs, _, err := client.PullRequests.List(ctx, repoName, scm.PullRequestListOptions{UpdatedAfter: &lastUpdated})
+	githubFetcher := &GithubFetcher{client: githubClient, repository: *repository}
+	ghCrds, err := githubFetcher.BuildPRCRDsFromGithub(ctx, lastUpdated)
 	if err != nil {
+		log.Error(err, "failed to build PullRequest CRD from Github")
 		return err
 	}
 
-	ghCrds := buildPullRequestCRDsFromGithub(prs, *repository)
-	yml, err := yaml.Marshal(ghCrds)
-	if err != nil {
-		return err
+	listOptions := &client.MatchingLabels{
+		"git.flanksource.com/repository": repository.Name,
 	}
-	fmt.Printf("YAML:\n%s\n", string(yml))
 
-	crdPRs := gitflanksourcecomv1.GitPullRequestList{}
-	if err := r.List(ctx, &crdPRs); err != nil {
+	k8sCrds := gitflanksourcecomv1.GitPullRequestList{}
+	if err := r.List(ctx, &k8sCrds, listOptions); err != nil {
 		return err
 	}
 
-	for _, pr := range prs {
-		fmt.Printf("PullRequest id=%d title=%s author=%s head=%s sha=%s source=%s\n", pr.Number, pr.Title, pr.Author.Login, pr.Head.Sha, pr.Sha, pr.Source)
+	inGithubById := map[string]*gitflanksourcecomv1.GitPullRequest{}
+	inK8sById := map[string]*gitflanksourcecomv1.GitPullRequest{}
+	allIds := map[string]bool{}
+	for _, crd := range ghCrds {
+		inGithubById[crd.Spec.ID] = crd.DeepCopy()
+		allIds[crd.Spec.ID] = true
+	}
+	for _, crd := range k8sCrds.Items {
+		inK8sById[crd.Spec.ID] = crd.DeepCopy()
+		allIds[crd.Spec.ID] = true
+	}
+
+	diff := PullRequestDiff{
+		Client:       r.Client,
+		Log:          log,
+		Repository:   repository,
+		GithubClient: githubClient,
+	}
+
+	for id, _ := range allIds {
+		gh := inGithubById[id]
+		k8s := inK8sById[id]
+
+		yml, _ := yaml.Marshal(gh)
+		fmt.Printf("YAML:\n%s", string(yml))
+
+		if err := diff.Merge(ctx, gh, k8s); err != nil {
+			return err
+		}
 	}
 
 	return nil
