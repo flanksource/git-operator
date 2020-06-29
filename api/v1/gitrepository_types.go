@@ -28,7 +28,7 @@ type GitRepositorySpec struct {
 
 // GitRepositoryStatus defines the observed state of GitRepository
 type GitRepositoryStatus struct {
-	LastUpdated metav1.Time `json:"last_updated,omitempty"`
+	LastUpdated metav1.Time `json:"lastUpdated,omitempty"`
 	// The Git SHA1 of the main/master branch
 	Head string `json:"head,omitempty"`
 }
@@ -45,9 +45,9 @@ type GitRepository struct {
 }
 
 type GithubCredentials struct {
-	Owner       string             `json:"owner,omitempty"`
-	Repository  string             `json:"repository,omitempty"`
-	Credentials v1.SecretReference `json:"credentials,omitempty"`
+	Owner      string             `json:"owner,omitempty"`
+	Repository string             `json:"repository,omitempty"`
+	SecretRef  v1.SecretReference `json:"secretRef,omitempty"`
 }
 
 // +kubebuilder:object:root=true

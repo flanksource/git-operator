@@ -20,14 +20,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // GitPullRequestSpec defines the desired state of GitPullRequest
 type GitPullRequestSpec struct {
 	// Full repository name including owner
 	Repository string `json:"repository,omitempty"`
 	ID         string `json:"id,omitempty"`
+	Title      string `json:"title,omitempty"`
+	Body       string `json:"body,omitempty"`
+	Head       string `json:"head,omitempty"`
+	Base       string `json:"base,omitempty"`
 	SHA        string `json:"sha,omitempty"`
 	Ref        string `json:"ref,omitempty"`
 	Fork       string `json:"fork,omitempty"`

@@ -1,0 +1,85 @@
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager
+rules:
+- apiGroups:
+  - git.flanksource.com
+  resources:
+  - gitbranches
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - git.flanksource.com
+  resources:
+  - gitbranches/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - git.flanksource.com
+  resources:
+  - gitpullrequests
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - git.flanksource.com
+  resources:
+  - gitpullrequests/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - git.flanksource.com
+  resources:
+  - gitrepositories
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - git.flanksource.com
+  resources:
+  - gitrepositories/status
+  verbs:
+  - get
+  - patch
+  - update
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  creationTimestamp: null
+  name: manager
+  namespace: system
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
