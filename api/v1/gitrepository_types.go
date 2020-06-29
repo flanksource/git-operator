@@ -45,9 +45,9 @@ type GitRepository struct {
 }
 
 type GithubCredentials struct {
-	Owner       string             `json:"owner,omitempty"`
-	Repository  string             `json:"repository,omitempty"`
-	Credentials v1.SecretReference `json:"credentials,omitempty"`
+	Owner      string             `json:"owner,omitempty"`
+	Repository string             `json:"repository,omitempty"`
+	SecretRef  v1.SecretReference `json:"secretRef,omitempty"`
 }
 
 // +kubebuilder:object:root=true

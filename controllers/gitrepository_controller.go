@@ -69,8 +69,8 @@ func (r *GitRepositoryReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 		return ctrl.Result{}, err
 	}
 
-	secretName := repository.Spec.Github.Credentials.Name
-	secretNamespace := repository.Spec.Github.Credentials.Namespace
+	secretName := repository.Spec.Github.SecretRef.Name
+	secretNamespace := repository.Spec.Github.SecretRef.Namespace
 	log.Info("Searching secret", "name", secretName, "namespace", secretNamespace)
 	credentials, err := getRepositoryCredentials(ctx, r.Clientset, secretName, secretNamespace)
 	if err != nil {
