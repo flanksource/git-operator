@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
-	gitflanksourcecomv1 "github.com/flanksource/git-operator/api/v1"
+	gitv1 "github.com/flanksource/git-operator/api/v1"
 	"github.com/go-logr/logr"
 	"github.com/jenkins-x/go-scm/scm"
 	"github.com/pkg/errors"
@@ -16,11 +16,11 @@ import (
 type PullRequestDiff struct {
 	client.Client
 	Log          logr.Logger
-	Repository   *gitflanksourcecomv1.GitRepository
+	Repository   *gitv1.GitRepository
 	GithubClient *scm.Client
 }
 
-func (p *PullRequestDiff) Merge(ctx context.Context, gh, k8s *gitflanksourcecomv1.GitPullRequest) error {
+func (p *PullRequestDiff) Merge(ctx context.Context, gh, k8s *gitv1.GitPullRequest) error {
 	if gh != nil && k8s == nil {
 		err := p.Client.Create(ctx, gh)
 		return errors.Wrapf(err, "failed to create GitPullRequest %s in namespace %s", gh.Name, gh.Namespace)
@@ -36,7 +36,7 @@ func (p *PullRequestDiff) Merge(ctx context.Context, gh, k8s *gitflanksourcecomv
 	return nil
 }
 
-func (p *PullRequestDiff) createInGithub(ctx context.Context, pr *gitflanksourcecomv1.GitPullRequest) error {
+func (p *PullRequestDiff) createInGithub(ctx context.Context, pr *gitv1.GitPullRequest) error {
 	repoName := pr.Spec.Repository
 	prRequest := &scm.PullRequestInput{
 		Title: pr.Spec.Title,

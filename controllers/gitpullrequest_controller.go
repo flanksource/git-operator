@@ -24,7 +24,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	gitflanksourcecomv1 "github.com/flanksource/git-operator/api/v1"
+	gitv1 "github.com/flanksource/git-operator/api/v1"
 )
 
 // GitPullRequestReconciler reconciles a GitPullRequest object
@@ -50,6 +50,6 @@ func (r *GitPullRequestReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 
 func (r *GitPullRequestReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&gitflanksourcecomv1.GitPullRequest{}).
+		For(&gitv1.GitPullRequest{}).
 		Complete(r)
 }

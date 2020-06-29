@@ -31,7 +31,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	gitflanksourcecomv1 "github.com/flanksource/git-operator/api/v1"
+	gitv1 "github.com/flanksource/git-operator/api/v1"
 	"github.com/flanksource/git-operator/controllers"
 	// +kubebuilder:scaffold:imports
 )
@@ -45,7 +45,7 @@ var (
 func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
 
-	_ = gitflanksourcecomv1.AddToScheme(scheme)
+	_ = gitv1.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
 }
 

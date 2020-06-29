@@ -31,7 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	gitflanksourcecomv1 "github.com/flanksource/git-operator/api/v1"
+	gitv1 "github.com/flanksource/git-operator/api/v1"
 )
 
 // GitRepositoryReconciler reconciles a GitRepository object
@@ -52,7 +52,7 @@ func (r *GitRepositoryReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	ctx := context.Background()
 	log := r.Log.WithValues("gitrepository", req.NamespacedName)
 
-	repository := &gitflanksourcecomv1.GitRepository{}
+	repository := &gitv1.GitRepository{}
 	if err := r.Get(ctx, req.NamespacedName, repository); err != nil {
 		if kerrors.IsNotFound(err) {
 			return reconcile.Result{}, nil
@@ -95,7 +95,7 @@ func (r *GitRepositoryReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	return ctrl.Result{}, nil
 }
 
-func (r *GitRepositoryReconciler) reconcilePullRequests(ctx context.Context, githubClient *scm.Client, repository *gitflanksourcecomv1.GitRepository) error {
+func (r *GitRepositoryReconciler) reconcilePullRequests(ctx context.Context, githubClient *scm.Client, repository *gitv1.GitRepository) error {
 	lastUpdated := repository.Status.LastUpdated.Time
 	log := r.Log.WithValues("gitrepository", fmt.Sprintf("%s/%s", repository.Namespace, repository.Name))
 
@@ -112,14 +112,14 @@ func (r *GitRepositoryReconciler) reconcilePullRequests(ctx context.Context, git
 		"git.flanksource.com/repository": repository.Name,
 	}
 
-	k8sCrds := gitflanksourcecomv1.GitPullRequestList{}
+	k8sCrds := gitv1.GitPullRequestList{}
 	if err := r.List(ctx, &k8sCrds, listOptions); err != nil {
 		return err
 	}
 
-	inGithubById := map[string]*gitflanksourcecomv1.GitPullRequest{}
-	inK8sById := map[string]*gitflanksourcecomv1.GitPullRequest{}
-	inK8sWithoutId := []*gitflanksourcecomv1.GitPullRequest{}
+	inGithubById := map[string]*gitv1.GitPullRequest{}
+	inK8sById := map[string]*gitv1.GitPullRequest{}
+	inK8sWithoutId := []*gitv1.GitPullRequest{}
 	allIds := map[string]bool{}
 	for _, crd := range ghCrds {
 		inGithubById[crd.Spec.ID] = crd.DeepCopy()
@@ -160,7 +160,7 @@ func (r *GitRepositoryReconciler) reconcilePullRequests(ctx context.Context, git
 	return nil
 }
 
-func (r *GitRepositoryReconciler) reconcileBranches(ctx context.Context, githubClient *scm.Client, repository *gitflanksourcecomv1.GitRepository) error {
+func (r *GitRepositoryReconciler) reconcileBranches(ctx context.Context, githubClient *scm.Client, repository *gitv1.GitRepository) error {
 	lastUpdated := repository.Status.LastUpdated.Time
 	log := r.Log.WithValues("gitrepository", fmt.Sprintf("%s/%s", repository.Namespace, repository.Name))
 
@@ -178,11 +178,11 @@ func (r *GitRepositoryReconciler) reconcileBranches(ctx context.Context, githubC
 		"git.flanksource.com/repository": repository.Name,
 	}
 
-	k8sCrds := gitflanksourcecomv1.GitBranchList{}
+	k8sCrds := gitv1.GitBranchList{}
 	if err := r.List(ctx, &k8sCrds, listOptions); err != nil {
 		return err
 	}
-	inK8sByName := map[string]*gitflanksourcecomv1.GitBranch{}
+	inK8sByName := map[string]*gitv1.GitBranch{}
 	for _, k8sCrd := range k8sCrds.Items {
 		inK8sByName[k8sCrd.Spec.BranchName] = k8sCrd.DeepCopy()
 	}
@@ -208,6 +208,6 @@ func (r *GitRepositoryReconciler) reconcileBranches(ctx context.Context, githubC
 
 func (r *GitRepositoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&gitflanksourcecomv1.GitRepository{}).
+		For(&gitv1.GitRepository{}).
 		Complete(r)
 }

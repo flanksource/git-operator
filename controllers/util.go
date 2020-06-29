@@ -8,7 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	gitflanksourcecomv1 "github.com/flanksource/git-operator/api/v1"
+	gitv1 "github.com/flanksource/git-operator/api/v1"
 )
 
 var (
@@ -50,7 +50,7 @@ func getRepositoryCredentials(ctx context.Context, k8s *kubernetes.Clientset, se
 	return nil, ErrProviderNotSupported
 }
 
-func getRepositoryName(r gitflanksourcecomv1.GitRepository) string {
+func getRepositoryName(r gitv1.GitRepository) string {
 	if r.Spec.Github == nil {
 		return ""
 	}
