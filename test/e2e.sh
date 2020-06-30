@@ -37,6 +37,7 @@ kubectl -n kube-system set env daemonset/calico-node FELIX_IGNORELOOSERPF=true
 
 $KARINA deploy base
 $KARINA deploy stubs
+kubectl create namespace platform-system
 
 export IMG=flanksource/git-operator:v1
 make docker-build
