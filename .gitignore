@@ -24,3 +24,10 @@ bin
 *~
 .DS_Store
 .env
+
+# karina artifacts
+/.bin
+/.certs
+/.kube
+/karina_osx
+/karina
