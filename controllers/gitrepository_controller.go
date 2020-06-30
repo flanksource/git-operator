@@ -193,11 +193,13 @@ func (r *GitRepositoryReconciler) reconcileBranches(ctx context.Context, githubC
 				log.Error(err, "failed to create GitBranch CRD", "branch", ghCrd.Spec.BranchName)
 				return err
 			}
+			log.Info("Branch created", "branch", ghCrd.Spec.BranchName)
 		} else if k8sCrd.Status.Head != ghCrd.Status.Head {
 			if err := r.Client.Update(ctx, &ghCrd); err != nil {
 				log.Error(err, "failed to update GitBranch CRD", "branch", ghCrd.Spec.BranchName)
 				return err
 			}
+			log.Info("Branch updated", "branch", ghCrd.Spec.BranchName)
 		} else {
 			log.Info("Branch did not change", "branch", ghCrd.Spec.BranchName)
 		}
