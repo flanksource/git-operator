@@ -122,13 +122,13 @@ func (r *GitRepositoryReconciler) reconcilePullRequests(ctx context.Context, git
 	inK8sWithoutId := []*gitv1.GitPullRequest{}
 	allIds := map[string]bool{}
 	for _, crd := range ghCrds {
-		inGithubById[crd.Spec.ID] = crd.DeepCopy()
-		allIds[crd.Spec.ID] = true
+		inGithubById[crd.Status.ID] = crd.DeepCopy()
+		allIds[crd.Status.ID] = true
 	}
 	for _, crd := range k8sCrds.Items {
-		if crd.Spec.ID != "" {
-			inK8sById[crd.Spec.ID] = crd.DeepCopy()
-			allIds[crd.Spec.ID] = true
+		if crd.Status.ID != "" {
+			inK8sById[crd.Status.ID] = crd.DeepCopy()
+			allIds[crd.Status.ID] = true
 		} else {
 			inK8sWithoutId = append(inK8sWithoutId, crd.DeepCopy())
 		}

@@ -67,9 +67,7 @@ func (g *GithubFetcher) BuildPRCRDFromGithub(ctx context.Context, pr *scm.PullRe
 		},
 		Spec: gitv1.GitPullRequestSpec{
 			Repository: repositoryName,
-			ID:         strconv.Itoa(pr.Number),
 			SHA:        pr.Sha,
-			Ref:        pr.Ref,
 			Head:       head,
 			Body:       pr.Body,
 			Base:       pr.Target,
@@ -78,7 +76,9 @@ func (g *GithubFetcher) BuildPRCRDFromGithub(ctx context.Context, pr *scm.PullRe
 			Reviewers:  reviewers,
 		},
 		Status: gitv1.GitPullRequestStatus{
+			ID:        strconv.Itoa(pr.Number),
 			URL:       pr.Link,
+			Ref:       pr.Ref,
 			Author:    pr.Author.Login,
 			Approvers: approvers,
 		},

@@ -24,13 +24,11 @@ import (
 type GitPullRequestSpec struct {
 	// Full repository name including owner
 	Repository string `json:"repository,omitempty"`
-	ID         string `json:"id,omitempty"`
 	Title      string `json:"title,omitempty"`
 	Body       string `json:"body,omitempty"`
 	Head       string `json:"head,omitempty"`
 	Base       string `json:"base,omitempty"`
 	SHA        string `json:"sha,omitempty"`
-	Ref        string `json:"ref,omitempty"`
 	Fork       string `json:"fork,omitempty"`
 
 	// Update to add or remove reviewers from the pull request
@@ -39,9 +37,11 @@ type GitPullRequestSpec struct {
 
 // GitPullRequestStatus defines the observed state of GitPullRequest
 type GitPullRequestStatus struct {
+	ID        string          `json:"id,omitempty"`
 	URL       string          `json:"url,omitempty"`
 	Author    string          `json:"author,omitempty"`
 	Approvers map[string]bool `json:"approvers,omitempty"`
+	Ref       string          `json:"ref,omitempty"`
 }
 
 type CheckStatus string

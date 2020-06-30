@@ -104,10 +104,6 @@ spec:
               type: string
             head:
               type: string
-            id:
-              type: string
-            ref:
-              type: string
             repository:
               description: Full repository name including owner
               type: string
@@ -129,6 +125,10 @@ spec:
                 type: boolean
               type: object
             author:
+              type: string
+            id:
+              type: string
+            ref:
               type: string
             url:
               type: string

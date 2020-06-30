@@ -43,8 +43,9 @@ var (
 	crdK8s crdclient.Client
 	tests  = map[string]Test{
 		"git-operator-is-running": TestGitOperatorIsRunning,
-		// "github-branch-sync":      TestGithubBranchSync,
-		"github-pr-github-sync": TestGithubPRSync,
+		"github-branch-sync":      TestGithubBranchSync,
+		"github-pr-github-sync":   TestGithubPRSync,
+		"github-pr-crd-sync":      TestGithubPRCRDSync,
 	}
 	scheme     = runtime.NewScheme()
 	restConfig *rest.Config
@@ -91,7 +92,8 @@ func main() {
 	}
 
 	errors := map[string]error{}
-	deadline, _ := context.WithTimeout(context.Background(), *timeout)
+	deadline, cancelFunc := context.WithTimeout(context.Background(), *timeout)
+	defer cancelFunc()
 
 	for name, t := range tests {
 		err := t(deadline, test)
@@ -135,7 +137,8 @@ func TestGithubBranchSync(ctx context.Context, test *console.TestResults) error 
 	}
 	test.Passf("TestGithubBranchSync", "Successfully created branch %s", branchName)
 
-	gitBranchGetCtx, _ := context.WithTimeout(ctx, 1*time.Minute)
+	gitBranchGetCtx, cancelFunc := context.WithTimeout(ctx, 1*time.Minute)
+	defer cancelFunc()
 	crdName := fmt.Sprintf("gitrepository-sample-%s", branchName)
 	gitBranch, err := waitForGitBranch(gitBranchGetCtx, crdName)
 	if err != nil {
@@ -158,7 +161,13 @@ func TestGithubBranchSync(ctx context.Context, test *console.TestResults) error 
 		return err
 	}
 
-	test.Passf("TestGithubBranchSync", "Successfully checked GitBranch %s", crdName)
+	defer func() {
+		if err := crdK8s.Delete(context.Background(), gitBranch); err != nil {
+			log.Errorf("failed to delete GitBranch %s in namespace %s", gitBranch.Name, namespace)
+		}
+	}()
+
+	test.Passf("TestGithubBranchSync", "Successfully checked GitBranch sync from Github to CRD %s", crdName)
 
 	return nil
 }
@@ -187,7 +196,8 @@ func TestGithubPRSync(ctx context.Context, test *console.TestResults) error {
 	}
 	pr, _, err := githubClient.PullRequests.Create(ctx, owner, repoName, pull)
 
-	gitPRGetCtx, _ := context.WithTimeout(ctx, 1*time.Minute)
+	gitPRGetCtx, cancelFunc := context.WithTimeout(ctx, 1*time.Minute)
+	defer cancelFunc()
 	crdName := fmt.Sprintf("gitrepository-sample-%d", *pr.Number)
 	gitPR, err := waitForGitPullRequest(gitPRGetCtx, crdName)
 	if err != nil {
@@ -200,8 +210,6 @@ func TestGithubPRSync(ctx context.Context, test *console.TestResults) error {
 		Body:       *pull.Body,
 		Fork:       "flanksource/git-operator-test",
 		Head:       branchName,
-		ID:         strconv.Itoa(*pr.Number),
-		Ref:        fmt.Sprintf("refs/pull/%d/head", *pr.Number),
 		Repository: "flanksource/git-operator-test",
 		SHA:        newSha,
 		Title:      *pull.Title,
@@ -214,13 +222,31 @@ func TestGithubPRSync(ctx context.Context, test *console.TestResults) error {
 	prStatus := &gitv1.GitPullRequestStatus{
 		Author: pullRequestUsername,
 		URL:    fmt.Sprintf("https://github.com/%s/pull/%d.diff", repository, *pr.Number),
+		ID:     strconv.Itoa(*pr.Number),
+		Ref:    fmt.Sprintf("refs/pull/%d/head", *pr.Number),
 	}
 
 	if err := assertInterfaceEquals(test, "TestGithubPRSync", gitPR.Status, prStatus); err != nil {
 		return err
 	}
 
-	test.Passf("TestGithubPRSync", "Successfully checked GitPullRequest %s", crdName)
+	defer func() {
+		if err := crdK8s.Delete(context.Background(), gitPR); err != nil {
+			log.Errorf("failed to delete GitPullRequest %s in namespace %s", gitPR.Name, namespace)
+		}
+		branchCrd := &gitv1.GitBranch{
+			TypeMeta: metav1.TypeMeta{Kind: "GitBranch", APIVersion: "git.flanksource.com/v1"},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("gitrepository-sample-%s", branchName),
+				Namespace: namespace,
+			},
+		}
+		if err := crdK8s.Delete(context.Background(), branchCrd); err != nil {
+			log.Errorf("failed to delete GitBranch %s in namespace %s", branchCrd.Name, namespace)
+		}
+	}()
+
+	test.Passf("TestGithubPRSync", "Successfully checked GitPullRequest sync from Github to CRD %s", crdName)
 
 	return nil
 }
@@ -235,28 +261,8 @@ func TestGithubPRCRDSync(ctx context.Context, test *console.TestResults) error {
 		return err
 	}
 
-	githubClient, err := githubClient(ctx)
-	if err != nil {
-		test.Failf("TestGithubPRCRDSync", "failed to get github client: %v", err)
-		return err
-	}
-
-	opts := &github.PullRequestListOptions{
-		State: "all",
-		ListOptions: github.ListOptions{
-			PerPage: 1,
-		},
-	}
-	prList, _, err := githubClient.PullRequests.List(ctx, owner, repoName, opts)
-	if err != nil {
-		test.Failf("TestGithubPRCRDSync", "failed to list github pull requests: %v", err)
-	}
-	latestPRCount := 1
-	if len(prList) > 0 {
-		latestPRCount = *prList[0].Number + 1
-	}
-
-	crdName := fmt.Sprintf("gitrepository-sample-%d", latestPRCount)
+	uniqueID := utils.RandomString(5)
+	crdName := fmt.Sprintf("gitrepository-sample-%s", uniqueID)
 	gitPRCRD := &gitv1.GitPullRequest{
 		TypeMeta: metav1.TypeMeta{APIVersion: "git.flanksource.com/v1", Kind: "GitPullRequest"},
 		ObjectMeta: metav1.ObjectMeta{
@@ -271,30 +277,64 @@ func TestGithubPRCRDSync(ctx context.Context, test *console.TestResults) error {
 			Body:       "This PullRequest is automatically generated by E2E suite from GitPullRequest CRD.",
 			Fork:       repository,
 			Head:       branchName,
-			ID:         strconv.Itoa(latestPRCount),
-			Ref:        fmt.Sprintf("refs/pull/%d/head", latestPRCount),
 			Repository: repository,
 			SHA:        newSha,
 			Title:      fmt.Sprintf("[E2E] Test Pull Request sync from CRD to Github %s", branchName),
 		},
 		Status: gitv1.GitPullRequestStatus{
 			Author: pullRequestUsername,
-			URL:    fmt.Sprintf("https://github.com/%s/pull/%d.diff", repository, latestPRCount),
 		},
 	}
 
 	if err := crdK8s.Create(ctx, gitPRCRD); err != nil {
-
-	}
-
-	gitPRGetCtx, _ := context.WithTimeout(ctx, 1*time.Minute)
-	gitPR, err := waitForGitPullRequestFromCrd(gitPRGetCtx, latestPRCount)
-	if err != nil {
-		test.Failf("TestGithubPRCRDSync", "error waiting for PR to be created in Github %s", latestPRCount)
+		test.Failf("TestGithubPRCRDSync", "failed to create CRD %s: %v", crdName, err)
 		return err
 	}
 
-	test.Passf("TestGithubPRCRDSync", "Successfully checked GitPullRequest %s", crdName)
+	gitPRGetCtx, cancelFunc := context.WithTimeout(ctx, 1*time.Minute)
+	defer cancelFunc()
+	gitPR, err := waitForGitPullRequestFromCrd(gitPRGetCtx, branchName)
+	if err != nil {
+		test.Failf("TestGithubPRCRDSync", "error waiting for PR to be created in Github %s: %v", branchName, err)
+		return err
+	}
+
+	updatedPRCrd := &gitv1.GitPullRequest{}
+	err = crdK8s.Get(ctx, types.NamespacedName{Name: crdName, Namespace: namespace}, updatedPRCrd)
+	if err != nil {
+		test.Failf("TestGithubPRCRDSync", "error getting PR CRD %s: %v", crdName, err)
+		return err
+	}
+
+	gitPRCRD.Status.Ref = fmt.Sprintf("refs/pull/%d/head", *gitPR.Number)
+	gitPRCRD.Status.ID = strconv.Itoa(*gitPR.Number)
+	gitPRCRD.Status.URL = fmt.Sprintf("https://github.com/%s/pull/%d.diff", repository, *gitPR.Number)
+
+	if err := assertInterfaceEquals(test, "TestGithubPRCRDSync", updatedPRCrd.Spec, gitPRCRD.Spec); err != nil {
+		return err
+	}
+
+	if err := assertInterfaceEquals(test, "TestGithubPRCRDSync", updatedPRCrd.Status, gitPRCRD.Status); err != nil {
+		return err
+	}
+
+	defer func() {
+		if err := crdK8s.Delete(context.Background(), updatedPRCrd); err != nil {
+			log.Errorf("failed to delete GitPullRequest %s in namespace %s", updatedPRCrd.Name, namespace)
+		}
+		branchCrd := &gitv1.GitBranch{
+			TypeMeta: metav1.TypeMeta{Kind: "GitBranch", APIVersion: "git.flanksource.com/v1"},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("gitrepository-sample-%s", branchName),
+				Namespace: namespace,
+			},
+		}
+		if err := crdK8s.Delete(context.Background(), branchCrd); err != nil {
+			log.Errorf("failed to delete GitBranch %s in namespace %s", branchCrd.Name, namespace)
+		}
+	}()
+
+	test.Passf("TestGithubPRCRDSync", "Successfully checked GitPullRequest sync from CRD to Github %s", crdName)
 
 	return nil
 }
@@ -328,6 +368,30 @@ func waitForGitPullRequest(ctx context.Context, crdName string) (*gitv1.GitPullR
 			return nil, errors.Wrapf(err, "failed to get GitPullRequest %s in namespace %s", crdName, namespace)
 		}
 		return gitPR, nil
+	}
+}
+
+func waitForGitPullRequestFromCrd(ctx context.Context, branchName string) (*github.PullRequest, error) {
+	githubClient, err := githubClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for {
+		opts := &github.PullRequestListOptions{
+			State: "all",
+			Head:  fmt.Sprintf("%s:%s", owner, branchName),
+		}
+		prList, _, err := githubClient.PullRequests.List(ctx, owner, repoName, opts)
+		if err != nil {
+			return nil, err
+		}
+		if len(prList) > 0 {
+			log.Debugf("Found PullRequest #%d with title %s", *prList[0].Number, *prList[0].Title)
+			return prList[0], nil
+		}
+		log.Debugf("Github PullRequest for branch %s does not exist", branchName)
+		time.Sleep(2 * time.Second)
 	}
 }
 
@@ -401,7 +465,7 @@ func assertInterfaceEquals(test *console.TestResults, name string, actual, expec
 	}
 
 	if string(actualYml) != string(expectedYml) {
-		test.Failf("Expected: %s\n%s\n\nTo Equal:\n%s\n", string(actualYml), string(expectedYml))
+		test.Failf("Test %s expected: %s\n\nTo Equal:\n%s\n", name, string(actualYml), string(expectedYml))
 		return errors.Errorf("Test %s expected:\n%s\nTo Match:\n%s\n", name, actualYml, expectedYml)
 	}
 
