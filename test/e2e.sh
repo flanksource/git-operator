@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -ex
+set -e
 
 export KARINA_VERSION=v0.16.2
 export KARINA="./karina -c test/config.yaml"
@@ -23,8 +23,7 @@ mkdir -p .bin
 
 KUSTOMIZE=./bin/kustomize
 if [ ! -f "$KUSTOMIZE" ]; then
-  curl -s "https://raw.githubusercontent.com/\
-    kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"  | bash
+  curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"  | bash
   mv kustomize .bin
 fi
 
