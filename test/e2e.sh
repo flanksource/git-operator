@@ -21,6 +21,13 @@ fi
 
 mkdir -p .bin
 
+KUSTOMIZE=./bin/kustomize
+if [ ! -f "$KUSTOMIZE" ]; then
+  curl -s "https://raw.githubusercontent.com/\
+    kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"  | bash
+  mv kustomize .bin
+fi
+
 $KARINA ca generate --name root-ca --cert-path .certs/root-ca.crt --private-key-path .certs/root-ca.key --password foobar  --expiry 1
 $KARINA ca generate --name ingress-ca --cert-path .certs/ingress-ca.crt --private-key-path .certs/ingress-ca.key --password foobar  --expiry 1
 $KARINA provision kind-cluster
