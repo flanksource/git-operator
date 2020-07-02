@@ -67,7 +67,7 @@ func main() {
 	} else {
 		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
 	}
-	timeout = flag.Duration("timeout", 5*time.Minute, "Global timeout for all tests")
+	timeout = flag.Duration("timeout", 10*time.Minute, "Global timeout for all tests")
 	flag.Parse()
 
 	_ = clientgoscheme.AddToScheme(scheme)
@@ -141,7 +141,7 @@ func TestGithubBranchSync(ctx context.Context, test *console.TestResults) error 
 	}
 	test.Passf("TestGithubBranchSync", "Successfully created branch %s", branchName)
 
-	gitBranchGetCtx, cancelFunc := context.WithTimeout(ctx, 1*time.Minute)
+	gitBranchGetCtx, cancelFunc := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancelFunc()
 	crdName := fmt.Sprintf("gitrepository-sample-%s", branchName)
 	gitBranch, err := waitForGitBranch(gitBranchGetCtx, crdName)
