@@ -30,12 +30,11 @@ import (
 )
 
 const (
-	namespace           = "platform-system"
-	deployment          = "git-operator-controller-manager"
-	repository          = "flanksource/git-operator-test"
-	owner               = "flanksource"
-	repoName            = "git-operator-test"
-	pullRequestUsername = "teodor-pripoae"
+	namespace  = "platform-system"
+	deployment = "git-operator-controller-manager"
+	repository = "flanksource/git-operator-test"
+	owner      = "flanksource"
+	repoName   = "git-operator-test"
 )
 
 var (
@@ -47,12 +46,17 @@ var (
 		"github-pr-github-sync":   TestGithubPRSync,
 		"github-pr-crd-sync":      TestGithubPRCRDSync,
 	}
-	scheme     = runtime.NewScheme()
-	restConfig *rest.Config
+	scheme              = runtime.NewScheme()
+	restConfig          *rest.Config
+	pullRequestUsername string
 )
 
 type Test func(context.Context, *console.TestResults) error
 type DeferFunc func()
+
+func init() {
+	pullRequestUsername = os.Getenv("GITHUB_USERNAME")
+}
 
 func main() {
 	var kubeconfig *string
