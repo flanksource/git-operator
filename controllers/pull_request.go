@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/jenkins-x/go-scm/scm"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -44,8 +46,12 @@ func (p *PullRequestDiff) createInGithub(ctx context.Context, pr *gitv1.GitPullR
 		Base:  pr.Spec.Base,
 		Head:  pr.Spec.Head,
 	}
-	ghPR, _, err := p.GithubClient.PullRequests.Create(ctx, repoName, prRequest)
+	ghPR, response, err := p.GithubClient.PullRequests.Create(ctx, repoName, prRequest)
 	if err != nil {
+		buf := new(bytes.Buffer)
+		buf.ReadFrom(response.Body)
+		log.Errorf("Github status code: %d", response.Status)
+		log.Errorf("Github response:\n [%s]", buf.String())
 		return errors.Wrap(err, "failed to create PullRequest in Github")
 	}
 
@@ -55,7 +61,9 @@ func (p *PullRequestDiff) createInGithub(ctx context.Context, pr *gitv1.GitPullR
 		}
 	}
 
-	pr.Spec.ID = strconv.Itoa(ghPR.Number)
+	pr.Status.ID = strconv.Itoa(ghPR.Number)
+	pr.Status.Ref = fmt.Sprintf("refs/pull/%d/head", ghPR.Number)
+	pr.Status.URL = fmt.Sprintf("https://github.com/%s/pull/%d.diff", repoName, ghPR.Number)
 	if err := p.Client.Update(ctx, pr); err != nil {
 		return errors.Wrapf(err, "failed to set PR number for GitPullRequest %s in namespace %s", pr.Name, pr.Namespace)
 	}
