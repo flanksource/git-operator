@@ -200,7 +200,7 @@ func TestGithubPRSync(ctx context.Context, test *console.TestResults) error {
 	}
 	pr, _, err := githubClient.PullRequests.Create(ctx, owner, repoName, pull)
 
-	gitPRGetCtx, cancelFunc := context.WithTimeout(ctx, 1*time.Minute)
+	gitPRGetCtx, cancelFunc := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancelFunc()
 	crdName := fmt.Sprintf("gitrepository-sample-%d", *pr.Number)
 	gitPR, err := waitForGitPullRequest(gitPRGetCtx, crdName)
@@ -295,7 +295,7 @@ func TestGithubPRCRDSync(ctx context.Context, test *console.TestResults) error {
 		return err
 	}
 
-	gitPRGetCtx, cancelFunc := context.WithTimeout(ctx, 1*time.Minute)
+	gitPRGetCtx, cancelFunc := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancelFunc()
 	gitPR, err := waitForGitPullRequestFromCrd(gitPRGetCtx, branchName)
 	if err != nil {
