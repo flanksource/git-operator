@@ -1,4 +1,4 @@
-package controllers
+package connectors
 
 import (
 	"context"
@@ -19,7 +19,7 @@ type GithubFetcher struct {
 
 func (g *GithubFetcher) BuildPRCRDsFromGithub(ctx context.Context, lastUpdated time.Time) ([]gitv1.GitPullRequest, error) {
 	crdPRs := []gitv1.GitPullRequest{}
-	repoName := getRepositoryName(g.repository)
+	repoName := g.repositoryName(g.repository)
 
 	prs, _, err := g.client.PullRequests.List(ctx, repoName, scm.PullRequestListOptions{UpdatedAfter: &lastUpdated})
 	if err != nil {
@@ -38,7 +38,7 @@ func (g *GithubFetcher) BuildPRCRDsFromGithub(ctx context.Context, lastUpdated t
 }
 
 func (g *GithubFetcher) BuildPRCRDFromGithub(ctx context.Context, pr *scm.PullRequest, lastUpdated time.Time) (*gitv1.GitPullRequest, error) {
-	repositoryName := getRepositoryName(g.repository)
+	repositoryName := g.repositoryName(g.repository)
 	reviewers := []string{}
 	approvers := map[string]bool{}
 
@@ -59,7 +59,7 @@ func (g *GithubFetcher) BuildPRCRDFromGithub(ctx context.Context, pr *scm.PullRe
 
 	crd := gitv1.GitPullRequest{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      pullRequestName(g.repository.Name, pr.Number),
+			Name:      g.pullRequestName(g.repository.Name, pr.Number),
 			Namespace: g.repository.Namespace,
 			Labels: map[string]string{
 				"git.flanksource.com/repository": g.repository.Name,
@@ -89,7 +89,7 @@ func (g *GithubFetcher) BuildPRCRDFromGithub(ctx context.Context, pr *scm.PullRe
 
 func (g *GithubFetcher) BuildBranchCRDsFromGithub(ctx context.Context, lastUpdated time.Time) ([]gitv1.GitBranch, error) {
 	crdBranches := []gitv1.GitBranch{}
-	repoName := getRepositoryName(g.repository)
+	repoName := g.repositoryName(g.repository)
 
 	branches, _, err := g.client.Git.ListBranches(ctx, repoName, scm.ListOptions{})
 	if err != nil {
@@ -108,11 +108,11 @@ func (g *GithubFetcher) BuildBranchCRDsFromGithub(ctx context.Context, lastUpdat
 }
 
 func (g *GithubFetcher) BuildBranchCRDFromGithub(ctx context.Context, branch *scm.Reference, lastUpdated time.Time) (*gitv1.GitBranch, error) {
-	repositoryName := getRepositoryName(g.repository)
+	repositoryName := g.repositoryName(g.repository)
 
 	crd := gitv1.GitBranch{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      branchName(g.repository.Name, branch.Name),
+			Name:      g.branchName(g.repository.Name, branch.Name),
 			Namespace: g.repository.Namespace,
 			Labels: map[string]string{
 				"git.flanksource.com/repository": g.repository.Name,
@@ -130,4 +130,19 @@ func (g *GithubFetcher) BuildBranchCRDFromGithub(ctx context.Context, branch *sc
 	}
 
 	return &crd, nil
+}
+
+func (g *GithubFetcher) repositoryName(r gitv1.GitRepository) string {
+	if r.Spec.Github == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s/%s", r.Spec.Github.Owner, r.Spec.Github.Repository)
+}
+
+func (g *GithubFetcher) branchName(repository string, name string) string {
+	return fmt.Sprintf("%s-%s", repository, name)
+}
+
+func (g *GithubFetcher) pullRequestName(repository string, number int) string {
+	return fmt.Sprintf("%s-%d", repository, number)
 }

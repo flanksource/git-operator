@@ -1,14 +1,11 @@
-package controllers
+package connectors
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-
-	gitv1 "github.com/flanksource/git-operator/api/v1"
 )
 
 var (
@@ -29,7 +26,7 @@ type RepositoryCredentials struct {
 
 // +kubebuilder:rbac:groups="",namespace=system,resources=secrets,verbs=get;list;watch
 
-func getRepositoryCredentials(ctx context.Context, k8s *kubernetes.Clientset, secretName, namespace string) (*RepositoryCredentials, error) {
+func GetRepositoryCredentials(ctx context.Context, k8s *kubernetes.Clientset, secretName, namespace string) (*RepositoryCredentials, error) {
 	secret, err := k8s.CoreV1().Secrets(namespace).Get(ctx, secretName, metav1.GetOptions{})
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get secret %s in namespace %s", secretName, namespace)
@@ -48,19 +45,4 @@ func getRepositoryCredentials(ctx context.Context, k8s *kubernetes.Clientset, se
 	}
 
 	return nil, ErrProviderNotSupported
-}
-
-func getRepositoryName(r gitv1.GitRepository) string {
-	if r.Spec.Github == nil {
-		return ""
-	}
-	return fmt.Sprintf("%s/%s", r.Spec.Github.Owner, r.Spec.Github.Repository)
-}
-
-func pullRequestName(repository string, number int) string {
-	return fmt.Sprintf("%s-%d", repository, number)
-}
-
-func branchName(repository string, name string) string {
-	return fmt.Sprintf("%s-%s", repository, name)
 }

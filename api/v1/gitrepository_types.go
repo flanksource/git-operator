@@ -24,6 +24,7 @@ import (
 // GitRepositorySpec defines the desired state of GitRepository
 type GitRepositorySpec struct {
 	Github *GithubCredentials `json:"github,omitempty"`
+	GitSSH *GitSSHCredentials `json:"gitSSH,omitempty"`
 }
 
 // GitRepositoryStatus defines the observed state of GitRepository
@@ -48,6 +49,11 @@ type GithubCredentials struct {
 	Owner      string             `json:"owner,omitempty"`
 	Repository string             `json:"repository,omitempty"`
 	SecretRef  v1.SecretReference `json:"secretRef,omitempty"`
+}
+
+type GitSSHCredentials struct {
+	Host      string             `json:"host,omitempty"`
+	SecretRef v1.SecretReference `json:"secretRef,omitempty"`
 }
 
 // +kubebuilder:object:root=true
