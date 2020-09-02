@@ -17,6 +17,12 @@ var (
 	ErrGithubTokenNotFoundInSecret = errors.New("GITHUB_TOKEN field not found in credentials secret")
 	// ErrProviderNotSupported is returned when PROVIDER field in credentials secret does not match any known provider
 	ErrProviderNotSupported = errors.New("PROVIDER not supported, valid providers are: github")
+	// ErrSSHUserNotFoundInSecret is returned when SSH_USER is not present in credentials secret
+	ErrSSHUserNotFoundInSecret = errors.New("SSH_USER field not found in credentials secret")
+	// ErrSSHPrivateKeyNotFoundInSecret is returned when SSH_PRIVATE_KEY is not present in credentials secret
+	ErrSSHPrivateKeyNotFoundInSecret = errors.New("SSH_PRIVATE_KEY field not found in credentials secret")
+	// ErrGitSSHURLIsEmpty is returned when gitSSH.url is not present
+	ErrGitSSHURLIsEmpty = errors.New("GitSSH url was not provided")
 )
 
 type RepositoryCredentials struct {

@@ -2,6 +2,7 @@ package connectors
 
 import (
 	"context"
+	"strings"
 
 	gitv1 "github.com/flanksource/git-operator/api/v1"
 	"github.com/go-logr/logr"
@@ -40,7 +41,22 @@ func NewConnector(ctx context.Context, crdClient client.Client, k8sClient *kuber
 		if !found {
 			return nil, ErrGithubTokenNotFoundInSecret
 		}
-		return NewGithub(crdClient, k8sClient, log, string(githubToken))
+		return NewGithub(crdClient, log, string(githubToken))
+	} else if repository.Spec.GitSSH != nil {
+		if repository.Spec.GitSSH.URL == "" {
+			return nil, ErrGitSSHURLIsEmpty
+		}
+		user := strings.Split(repository.Spec.GitSSH.URL, "@")[0]
+
+		privateKey, found := secret.Data["SSH_PRIVATE_KEY"]
+		if !found {
+			return nil, ErrSSHPrivateKeyNotFoundInSecret
+		}
+		password, found := secret.Data["SSH_PRIVATE_KEY_PASSWORD"]
+		if !found {
+			password = []byte{}
+		}
+		return NewGitSSH(crdClient, log, string(user), privateKey, string(password))
 	}
 
 	return nil, errors.New("no connector settings found")

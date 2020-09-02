@@ -52,7 +52,7 @@ type GithubCredentials struct {
 }
 
 type GitSSHCredentials struct {
-	Host      string             `json:"host,omitempty"`
+	URL       string             `json:"url,omitempty"`
 	SecretRef v1.SecretReference `json:"secretRef,omitempty"`
 }
 

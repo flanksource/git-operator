@@ -9,26 +9,23 @@ import (
 	"github.com/jenkins-x/go-scm/scm"
 	"github.com/jenkins-x/go-scm/scm/factory"
 	"github.com/pkg/errors"
-	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type Github struct {
 	client *scm.Client
-	k8s    *kubernetes.Clientset
 	k8sCrd client.Client
 	log    logr.Logger
 	scm    *scm.Client
 }
 
-func NewGithub(client client.Client, clientset *kubernetes.Clientset, log logr.Logger, githubToken string) (Connector, error) {
+func NewGithub(client client.Client, log logr.Logger, githubToken string) (Connector, error) {
 	scmClient, err := factory.NewClient("github", "", githubToken)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create github client")
 	}
 
 	github := &Github{
-		k8s:    clientset,
 		k8sCrd: client,
 		log:    log.WithName("connector").WithName("Github"),
 		scm:    scmClient,
