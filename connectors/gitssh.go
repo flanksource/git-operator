@@ -6,16 +6,16 @@ import (
 
 	gitv1 "github.com/flanksource/git-operator/api/v1"
 	v1 "github.com/flanksource/git-operator/api/v1"
+	git "github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/config"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/transport"
+	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
+	"github.com/go-git/go-git/v5/storage/memory"
 	"github.com/go-logr/logr"
 	"github.com/jenkins-x/go-scm/scm"
 	"github.com/pkg/errors"
 	ssh2 "golang.org/x/crypto/ssh"
-	"gopkg.in/src-d/go-git.v4"
-	"gopkg.in/src-d/go-git.v4/config"
-	"gopkg.in/src-d/go-git.v4/plumbing"
-	"gopkg.in/src-d/go-git.v4/plumbing/transport"
-	"gopkg.in/src-d/go-git.v4/plumbing/transport/ssh"
-	"gopkg.in/src-d/go-git.v4/storage/memory"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -24,10 +24,11 @@ type GitSSH struct {
 	client *scm.Client
 	k8sCrd client.Client
 	log    logr.Logger
+	url    string
 	auth   transport.AuthMethod
 }
 
-func NewGitSSH(client client.Client, log logr.Logger, user string, privateKey []byte, password string) (Connector, error) {
+func NewGitSSH(client client.Client, log logr.Logger, url, user string, privateKey []byte, password string) (Connector, error) {
 	publicKeys, err := ssh.NewPublicKeys(user, privateKey, password)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create public keys")
@@ -37,13 +38,14 @@ func NewGitSSH(client client.Client, log logr.Logger, user string, privateKey []
 	github := &GitSSH{
 		k8sCrd: client,
 		log:    log.WithName("connector").WithName("GitSSH"),
+		url:    url,
 		auth:   publicKeys,
 	}
 	return github, nil
 }
 
 func (g *GitSSH) ReconcileBranches(ctx context.Context, repository *gitv1.GitRepository) error {
-	log := g.log.WithValues("gitrepository", repository.Spec.GitSSH.URL)
+	log := g.log.WithValues("gitrepository", g.url)
 
 	remoteCrds, err := g.GetBranchCRDsFromRemote(ctx, repository)
 
@@ -92,7 +94,7 @@ func (g *GitSSH) ReconcilePullRequests(ctx context.Context, repository *gitv1.Gi
 
 func (g *GitSSH) GetBranchCRDsFromRemote(ctx context.Context, repository *gitv1.GitRepository) ([]gitv1.GitBranch, error) {
 	r, err := git.Clone(memory.NewStorage(), nil, &git.CloneOptions{
-		URL:  repository.Spec.GitSSH.URL,
+		URL:  g.url,
 		Auth: g.auth,
 	})
 
@@ -130,7 +132,7 @@ func (g *GitSSH) GetBranchCRDsFromRemote(ctx context.Context, repository *gitv1.
 }
 
 func (g *GitSSH) GetBranchCRDFromRemote(repository *gitv1.GitRepository, ref *plumbing.Reference) gitv1.GitBranch {
-	repositoryName := repository.Spec.GitSSH.URL
+	repositoryName := g.url
 	branchName := ref.Name().Short()
 
 	crd := gitv1.GitBranch{

@@ -34,44 +34,22 @@ spec:
         spec:
           description: GitRepositorySpec defines the desired state of GitRepository
           properties:
-            gitSSH:
+            secretRef:
+              description: The secret name containing the Git credentials. For SSH
+                repositories the secret must contain SSH_PRIVATE_KEY, SSH_PRIVATE_KEY_PASSORD
+                For Github repositories it must contain GITHUB_TOKEN
               properties:
-                secretRef:
-                  description: SecretReference represents a Secret Reference. It has
-                    enough information to retrieve secret in any namespace
-                  properties:
-                    name:
-                      description: Name is unique within a namespace to reference
-                        a secret resource.
-                      type: string
-                    namespace:
-                      description: Namespace defines the space within which the secret
-                        name must be unique.
-                      type: string
-                  type: object
-                url:
+                name:
+                  description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                    TODO: Add other useful fields. apiVersion, kind, uid?'
                   type: string
               type: object
-            github:
-              properties:
-                owner:
-                  type: string
-                repository:
-                  type: string
-                secretRef:
-                  description: SecretReference represents a Secret Reference. It has
-                    enough information to retrieve secret in any namespace
-                  properties:
-                    name:
-                      description: Name is unique within a namespace to reference
-                        a secret resource.
-                      type: string
-                    namespace:
-                      description: Namespace defines the space within which the secret
-                        name must be unique.
-                      type: string
-                  type: object
-              type: object
+            url:
+              description: The repository URL, can be a HTTP or SSH address.
+              pattern: ^(http|https|ssh)://
+              type: string
+          required:
+          - url
           type: object
         status:
           description: GitRepositoryStatus defines the observed state of GitRepository

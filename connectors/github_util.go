@@ -15,6 +15,8 @@ import (
 type GithubFetcher struct {
 	client     *scm.Client
 	repository gitv1.GitRepository
+	owner      string
+	repoName   string
 }
 
 func (g *GithubFetcher) BuildPRCRDsFromGithub(ctx context.Context, lastUpdated time.Time) ([]gitv1.GitPullRequest, error) {
@@ -133,10 +135,7 @@ func (g *GithubFetcher) BuildBranchCRDFromGithub(ctx context.Context, branch *sc
 }
 
 func (g *GithubFetcher) repositoryName(r gitv1.GitRepository) string {
-	if r.Spec.Github == nil {
-		return ""
-	}
-	return fmt.Sprintf("%s/%s", r.Spec.Github.Owner, r.Spec.Github.Repository)
+	return fmt.Sprintf("%s/%s", g.owner, g.repoName)
 }
 
 func (g *GithubFetcher) branchName(repository string, name string) string {

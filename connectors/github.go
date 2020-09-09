@@ -13,22 +13,26 @@ import (
 )
 
 type Github struct {
-	client *scm.Client
-	k8sCrd client.Client
-	log    logr.Logger
-	scm    *scm.Client
+	client   *scm.Client
+	k8sCrd   client.Client
+	log      logr.Logger
+	scm      *scm.Client
+	owner    string
+	repoName string
 }
 
-func NewGithub(client client.Client, log logr.Logger, githubToken string) (Connector, error) {
+func NewGithub(client client.Client, log logr.Logger, owner, repoName, githubToken string) (Connector, error) {
 	scmClient, err := factory.NewClient("github", "", githubToken)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create github client")
 	}
 
 	github := &Github{
-		k8sCrd: client,
-		log:    log.WithName("connector").WithName("Github"),
-		scm:    scmClient,
+		k8sCrd:   client,
+		log:      log.WithName("connector").WithName("Github"),
+		scm:      scmClient,
+		owner:    owner,
+		repoName: repoName,
 	}
 	return github, nil
 }
@@ -39,7 +43,7 @@ func (g *Github) ReconcileBranches(ctx context.Context, repository *gitv1.GitRep
 
 	log.V(4).Info("lastUpdated: %s", lastUpdated.String())
 
-	githubFetcher := &GithubFetcher{client: g.scm, repository: *repository}
+	githubFetcher := &GithubFetcher{client: g.scm, repository: *repository, owner: g.owner, repoName: g.repoName}
 	ghCrds, err := githubFetcher.BuildBranchCRDsFromGithub(ctx, lastUpdated)
 
 	if err != nil {
@@ -87,7 +91,7 @@ func (g *Github) ReconcilePullRequests(ctx context.Context, repository *gitv1.Gi
 
 	log.V(4).Info("lastUpdated: %s\n", lastUpdated.String())
 
-	githubFetcher := &GithubFetcher{client: g.scm, repository: *repository}
+	githubFetcher := &GithubFetcher{client: g.scm, repository: *repository, owner: g.owner, repoName: g.repoName}
 	ghCrds, err := githubFetcher.BuildPRCRDsFromGithub(ctx, lastUpdated)
 	if err != nil {
 		log.Error(err, "failed to build PullRequest CRD from Github")
