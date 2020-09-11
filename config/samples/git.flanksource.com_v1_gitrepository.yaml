@@ -4,13 +4,9 @@ metadata:
   name: gitrepository-sample
   namespace: platform-system
 spec:
-  github:
-    owner: "flanksource"
-    repository: "git-operator-test"
-    secretRef:
-      # You need to define a secret named git-operator-test in namespace platform-system with following contents
-      # PROVIDER=github
-      # GITHUB_TOKEN=<...>
-      # kubectl create secret generic git-operator-test -n platform-system --from-literal=PROVIDER=github --from-literal=GITHUB_TOKEN=$GITHUB_TOKEN
-      name: git-operator-test
-      namespace: platform-system
+  url: https://github.com/flanksource/git-operator-test
+  secretRef:
+    # You need to define a secret named git-operator-test in namespace platform-system with following contents
+    # GITHUB_TOKEN=<...>
+    # kubectl create secret generic git-operator-test -n platform-system --from-literal=GITHUB_TOKEN=$GITHUB_TOKEN
+    name: git-operator-test

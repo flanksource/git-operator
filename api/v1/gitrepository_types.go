@@ -17,13 +17,22 @@ limitations under the License.
 package v1
 
 import (
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // GitRepositorySpec defines the desired state of GitRepository
 type GitRepositorySpec struct {
-	Github *GithubCredentials `json:"github,omitempty"`
+	// The repository URL, can be a HTTP or SSH address.
+	// +kubebuilder:validation:Pattern="^(http|https|ssh)://"
+	// +required
+	URL string `json:"url"`
+
+	// The secret name containing the Git credentials.
+	// For SSH repositories the secret must contain SSH_PRIVATE_KEY, SSH_PRIVATE_KEY_PASSORD
+	// For Github repositories it must contain GITHUB_TOKEN
+	// +optional
+	SecretRef *corev1.LocalObjectReference `json:"secretRef,omitempty"`
 }
 
 // GitRepositoryStatus defines the observed state of GitRepository
@@ -42,12 +51,6 @@ type GitRepository struct {
 
 	Spec   GitRepositorySpec   `json:"spec,omitempty"`
 	Status GitRepositoryStatus `json:"status,omitempty"`
-}
-
-type GithubCredentials struct {
-	Owner      string             `json:"owner,omitempty"`
-	Repository string             `json:"repository,omitempty"`
-	SecretRef  v1.SecretReference `json:"secretRef,omitempty"`
 }
 
 // +kubebuilder:object:root=true
