@@ -3,8 +3,15 @@ package connectors
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
+	"os"
 
 	gitv1 "github.com/flanksource/git-operator/api/v1"
+	"github.com/go-git/go-billy/v5"
+	"github.com/go-git/go-billy/v5/osfs"
+	git "github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing/transport"
+	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/go-logr/logr"
 	"github.com/jenkins-x/go-scm/scm"
 	"github.com/jenkins-x/go-scm/scm/factory"
@@ -17,6 +24,8 @@ type Github struct {
 	k8sCrd   client.Client
 	log      logr.Logger
 	scm      *scm.Client
+	repo     *git.Repository
+	auth     transport.AuthMethod
 	owner    string
 	repoName string
 }
@@ -29,12 +38,52 @@ func NewGithub(client client.Client, log logr.Logger, owner, repoName, githubTok
 
 	github := &Github{
 		k8sCrd:   client,
-		log:      log.WithName("connector").WithName("Github"),
+		log:      log.WithName("Github").WithName(owner + "/" + repoName),
 		scm:      scmClient,
 		owner:    owner,
 		repoName: repoName,
+		auth:     &http.BasicAuth{Password: githubToken, Username: githubToken},
 	}
 	return github, nil
+}
+
+func (g *Github) Push(ctx context.Context) error {
+	if g.repo == nil {
+		return errors.New("Need to clone first, before pushing ")
+	}
+
+	g.log.V(1).Info("Pushing")
+
+	if err := g.repo.Push(&git.PushOptions{
+		Auth:     g.auth,
+		Progress: os.Stdout,
+	}); err != nil {
+		return err
+	}
+	ref, _ := g.repo.Head()
+	g.log.Info("Pushed", "ref", ref.String())
+	return nil
+}
+
+func (g *Github) Clone(ctx context.Context, branch string) (billy.Filesystem, *git.Worktree, error) {
+	dir, _ := ioutil.TempDir("", "git-*")
+	url := fmt.Sprintf("https://github.com/%s/%s.git", g.owner, g.repoName)
+	g.log.Info("Cloning", "temp", dir)
+	repo, err := git.PlainCloneContext(ctx, dir, false, &git.CloneOptions{
+		URL:      url,
+		Progress: os.Stdout,
+		Auth:     g.auth,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	g.repo = repo
+
+	work, err := repo.Worktree()
+	if err != nil {
+		return nil, nil, err
+	}
+	return osfs.New(dir), work, nil
 }
 
 func (g *Github) ReconcileBranches(ctx context.Context, repository *gitv1.GitRepository) error {

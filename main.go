@@ -27,7 +27,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
-	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
@@ -94,12 +93,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	kubeConfig, err := rest.InClusterConfig()
-	if err != nil {
-		setupLog.Error(err, "failed to get in cluster config")
-		os.Exit(1)
-	}
-	clientset, err := kubernetes.NewForConfig(kubeConfig)
+	clientset, err := kubernetes.NewForConfig(mgr.GetConfig())
 	if err != nil {
 		setupLog.Error(err, "failed to create clientset")
 		os.Exit(1)
@@ -120,6 +114,14 @@ func main() {
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "GitPullRequest")
+		os.Exit(1)
+	}
+	if err = (&controllers.GitopsAPIReconciler{
+		Client: mgr.GetClient(),
+		Log:    ctrl.Log.WithName("controllers").WithName("GitopsAPI"),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "GitopsAPI")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder

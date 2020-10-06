@@ -60,7 +60,7 @@ func (r *GitRepositoryReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 
 	log.Info("Got git repository from server", "repository", repository.Name)
 
-	connector, err := connectors.NewConnector(ctx, r.Client, r.Clientset, r.Log, repository)
+	connector, err := connectors.NewConnector(ctx, r.Client, r.Clientset, r.Log, repository.Namespace, repository.Spec.URL, repository.Spec.SecretRef)
 	if err != nil {
 		log.Error(err, "failed to create connector")
 		return ctrl.Result{}, err

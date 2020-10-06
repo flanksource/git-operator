@@ -10,4 +10,7 @@ resources:
 - group: git
   kind: GitBranch
   version: v1
+- group: git
+  kind: GitopsAPI
+  version: v1
 version: "2"

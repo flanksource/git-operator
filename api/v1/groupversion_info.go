@@ -20,7 +20,10 @@ limitations under the License.
 package v1
 
 import (
+	"github.com/weaveworks/libgitops/pkg/serializer"
+	runtime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	k8sserializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	"sigs.k8s.io/controller-runtime/pkg/scheme"
 )
 
@@ -33,4 +36,18 @@ var (
 
 	// AddToScheme adds the types in this group-version to the given scheme.
 	AddToScheme = SchemeBuilder.AddToScheme
+
+	// Scheme is the runtime.Scheme to which all types are registered.
+	Scheme = runtime.NewScheme()
+
+	// codecs provides access to encoding and decoding for the scheme.
+	// codecs is private, as Serializer will be used for all higher-level encoding/decoding
+	codecs = k8sserializer.NewCodecFactory(Scheme)
+
+	// Serializer provides high-level encoding/decoding functions
+	Serializer = serializer.NewSerializer(Scheme, &codecs)
 )
+
+func init() {
+	AddToScheme(Scheme)
+}

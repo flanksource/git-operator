@@ -3,9 +3,12 @@ package connectors
 import (
 	"context"
 	"fmt"
+	"os"
 
 	gitv1 "github.com/flanksource/git-operator/api/v1"
 	v1 "github.com/flanksource/git-operator/api/v1"
+	"github.com/go-git/go-billy/v5"
+	"github.com/go-git/go-billy/v5/memfs"
 	git "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -21,11 +24,33 @@ import (
 )
 
 type GitSSH struct {
-	client *scm.Client
+	*scm.Client
 	k8sCrd client.Client
 	log    logr.Logger
 	url    string
 	auth   transport.AuthMethod
+}
+
+func (g *GitSSH) Push(ctx context.Context) error {
+	return nil
+}
+
+func (g *GitSSH) Clone(ctx context.Context, branch string) (billy.Filesystem, *git.Worktree, error) {
+	// Filesystem abstraction based on memory
+	fs := memfs.New()
+
+	repo, err := git.Clone(memory.NewStorage(), fs, &git.CloneOptions{
+		URL:      g.url,
+		Progress: os.Stdout,
+		Auth:     g.auth,
+	})
+
+	work, err := repo.Worktree()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return fs, work, nil
 }
 
 func NewGitSSH(client client.Client, log logr.Logger, url, user string, privateKey []byte, password string) (Connector, error) {

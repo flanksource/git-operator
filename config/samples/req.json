@@ -1,0 +1,18 @@
+{
+  "apiVersion": "acmp.corp/v1",
+  "kind": "NamespaceRequest",
+  "metadata": {
+     "name": "tenant4",
+     "annotations": {
+        "a": "b"
+     },
+     "labels": {
+        "c": "d"
+     }
+  },
+  "spec": {
+     "memory": 8,
+     "cluster": "dev02"
+  },
+  "cluster": "dev02"
+}

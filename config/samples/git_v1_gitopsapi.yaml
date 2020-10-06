@@ -1,0 +1,39 @@
+apiVersion: git.flanksource.com/v1
+kind: GitopsAPI
+metadata:
+  name: gitopsapi-sample
+spec:
+  gitRepository: https://github.com/moshloop/test-gitops-api.git
+  path: clusters/{{.spec.cluster}}/{{.metadata.name}}.yaml
+  kustomization: clusters/{{.spec.cluster}}/kustomization.yaml
+  secretRef:
+    name: github
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: namespacerequests.acmp.corp
+spec:
+  group: acmp.corp
+  names:
+    kind: NamespaceRequest
+    listKind: NamespaceRequestList
+    plural: namespacerequests
+    singular: namespacerequest
+  scope: Namespaced
+  version: v1
+  versions:
+    - name: v1
+      served: true
+      storage: true
+---
+apiVersion: acmp.corp/v1
+kind: NamespaceRequest
+metadata:
+  name: tenant
+  annotations:
+    a: b
+  labels:
+    c: d
+spec:
+  memory: 8
