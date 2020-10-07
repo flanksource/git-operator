@@ -139,7 +139,7 @@ func serve(c echo.Context, r *GitopsAPIReconciler) error {
 		r.Log.Error(err, "error unmarshalling kustomization")
 		return c.String(http.StatusInternalServerError, err.Error())
 	}
-	relativePath := strings.Replace(contentPath, path.Dir(kustomizationPath)+"/", "")
+	relativePath := strings.Replace(contentPath, path.Dir(kustomizationPath)+"/", "", -1)
 	kustomization.Resources = append(kustomization.Resources, relativePath)
 	existingKustomization, _ = yaml.Marshal(kustomization)
 
