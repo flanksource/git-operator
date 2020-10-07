@@ -23,9 +23,11 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"time"
 
 	"github.com/go-git/go-billy/v5"
 	gitv5 "github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-logr/logr"
 	"github.com/labstack/echo"
 	"github.com/pkg/errors"
@@ -142,9 +144,20 @@ func serve(c echo.Context, r *GitopsAPIReconciler) error {
 		r.Log.Error(err, "error saving kustomization")
 		return c.String(http.StatusInternalServerError, err.Error())
 	}
-
+	author := &object.Signature{
+		Name:  api.Spec.GitUser,
+		Email: api.Spec.GitEmail,
+		When:  time.Now(),
+	}
+	if author.Name == "" {
+		author.Name = "Git Operator"
+	}
+	if author.Email == "" {
+		author.Email = "git-operator@noreply.flanksource.com"
+	}
 	hash, err := work.Commit("Automated Update", &gitv5.CommitOptions{
-		All: true,
+		Author: author,
+		All:    true,
 	})
 
 	if err != nil {
