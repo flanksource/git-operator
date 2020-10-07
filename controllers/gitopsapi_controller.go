@@ -23,6 +23,8 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"path"
+	"strings"
 	"time"
 
 	"github.com/go-git/go-billy/v5"
@@ -137,7 +139,8 @@ func serve(c echo.Context, r *GitopsAPIReconciler) error {
 		r.Log.Error(err, "error unmarshalling kustomization")
 		return c.String(http.StatusInternalServerError, err.Error())
 	}
-	kustomization.Resources = append(kustomization.Resources, contentPath)
+	relativePath := strings.Replace(contentPath, path.Dir(kustomizationPath)+"/", "")
+	kustomization.Resources = append(kustomization.Resources, relativePath)
 	existingKustomization, _ = yaml.Marshal(kustomization)
 
 	if err := copy(existingKustomization, kustomizationPath, fs, work); err != nil {
