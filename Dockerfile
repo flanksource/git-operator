@@ -14,6 +14,7 @@ COPY main.go main.go
 COPY api/ api/
 COPY connectors/ connectors/
 COPY controllers/ controllers/
+COPY k8s/ k8s/
 
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -a -o manager main.go

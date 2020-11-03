@@ -124,6 +124,15 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "GitopsAPI")
 		os.Exit(1)
 	}
+	if err = (&controllers.GitOpsReconciler{
+		Client:    mgr.GetClient(),
+		Clientset: clientset,
+		Log:       ctrl.Log.WithName("controllers").WithName("Gitops"),
+		Scheme:    mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Gitops")
+		os.Exit(1)
+	}
 	// +kubebuilder:scaffold:builder
 
 	setupLog.Info("starting manager")

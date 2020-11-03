@@ -7,6 +7,12 @@ metadata:
   name: manager
 rules:
 - apiGroups:
+  - '*'
+  resources:
+  - '*'
+  verbs:
+  - '*'
+- apiGroups:
   - git.flanksource.com
   resources:
   - gitbranches
@@ -22,6 +28,26 @@ rules:
   - git.flanksource.com
   resources:
   - gitbranches/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - git.flanksource.com
+  resources:
+  - gitops
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - git.flanksource.com
+  resources:
+  - gitops/status
   verbs:
   - get
   - patch

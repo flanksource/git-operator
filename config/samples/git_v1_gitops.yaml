@@ -1,0 +1,9 @@
+apiVersion: git.flanksource.com/v1
+kind: GitOps
+metadata:
+  name: gitopsapi-sample
+  namespace: gitops-e2e-test
+spec:
+  gitUrl: https://github.com/flanksource/gitops-test.git
+
+  helmOperatorVersion: 1.2.0

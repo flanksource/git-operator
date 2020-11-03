@@ -47,7 +47,7 @@ type GitOpsSpec struct {
 	// The version to use for flux (default: 1.9.0 )
 	FluxVersion string `json:"fluxVersion,omitempty"`
 	// The version to use for flux (default: 1.9.0 )
-	HelmOperatorVersion string `json:"fluxVersion,omitempty"`
+	HelmOperatorVersion string `json:"helmOperatorVersion,omitempty"`
 	// a map of args to pass to flux without -- prepended. See [fluxd](https://docs.fluxcd.io/en/1.19.0/references/daemon/) for a full list
 	Args map[string]string `json:"args,omitempty"`
 }
