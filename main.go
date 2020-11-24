@@ -30,8 +30,10 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	"github.com/flanksource/commons/logger"
 	gitv1 "github.com/flanksource/git-operator/api/v1"
 	"github.com/flanksource/git-operator/controllers"
+	"github.com/flanksource/kommons"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -99,6 +101,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	kommonsClient := kommons.NewClient(mgr.GetConfig(), logger.StandardLogger())
+
 	if err = (&controllers.GitRepositoryReconciler{
 		Client:    mgr.GetClient(),
 		Clientset: clientset,
@@ -125,10 +129,11 @@ func main() {
 		os.Exit(1)
 	}
 	if err = (&controllers.GitOpsReconciler{
-		Client:    mgr.GetClient(),
-		Clientset: clientset,
-		Log:       ctrl.Log.WithName("controllers").WithName("Gitops"),
-		Scheme:    mgr.GetScheme(),
+		Client:        mgr.GetClient(),
+		Clientset:     clientset,
+		KommonsClient: kommonsClient,
+		Log:           ctrl.Log.WithName("controllers").WithName("Gitops"),
+		Scheme:        mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Gitops")
 		os.Exit(1)

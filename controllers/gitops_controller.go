@@ -24,8 +24,9 @@ import (
 	"strings"
 
 	gitv1 "github.com/flanksource/git-operator/api/v1"
-	"github.com/flanksource/git-operator/k8s"
+	"github.com/flanksource/kommons"
 	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -43,9 +44,10 @@ const (
 // GitOpsReconciler reconciles a GitOps object
 type GitOpsReconciler struct {
 	client.Client
-	Clientset *kubernetes.Clientset
-	Log       logr.Logger
-	Scheme    *runtime.Scheme
+	Clientset     *kubernetes.Clientset
+	KommonsClient *kommons.Client
+	Log           logr.Logger
+	Scheme        *runtime.Scheme
 }
 
 // +kubebuilder:rbac:groups=git.flanksource.com,resources=gitops,verbs=get;list;watch;create;update;patch;delete
@@ -73,12 +75,14 @@ func (r *GitOpsReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	objects := NewGitops(config)
 
-	dynamic := k8s.NewDynamic(log)
-
 	if config.ObjectMeta.DeletionTimestamp != nil {
 		for _, obj := range objects {
-			if err := dynamic.Delete(ctx, config.Spec.Namespace, obj); err != nil {
-				return ctrl.Result{}, err
+			client, _, unstructuredObject, err := r.KommonsClient.GetDynamicClientFor(config.Spec.Namespace, obj)
+			if err != nil {
+				return ctrl.Result{}, errors.Wrap(err, "failed to get dynamic client")
+			}
+			if err := client.Delete(ctx, unstructuredObject.GetName(), metav1.DeleteOptions{}); err != nil {
+				return ctrl.Result{}, errors.Wrap(err, "failed to delete object")
 			}
 		}
 
@@ -107,7 +111,7 @@ func (r *GitOpsReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	for _, obj := range objects {
-		if err := dynamic.Apply(ctx, config.Spec.Namespace, obj); err != nil {
+		if err := r.KommonsClient.Apply(config.Spec.Namespace, obj); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
@@ -145,7 +149,7 @@ func NewGitops(gitops *gitv1.GitOps) []runtime.Object {
 		"memcached-service": "",
 	}
 
-	builder := k8s.Builder{
+	builder := kommons.Builder{
 		Namespace: spec.Namespace,
 	}
 
@@ -175,7 +179,7 @@ func NewGitops(gitops *gitv1.GitOps) []runtime.Object {
 		Expose(3030).
 		Build()
 
-	var sa *k8s.ServiceAccountBuilder
+	var sa *kommons.ServiceAccountBuilder
 	if spec.Namespace == KubeSystemNamespace {
 		builder.ServiceAccount(saName).AddClusterRole("cluster-admin")
 	} else {
