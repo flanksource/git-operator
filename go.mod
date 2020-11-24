@@ -47,7 +47,6 @@ require (
 
 replace (
 	github.com/docker/distribution => github.com/docker/distribution v2.7.1+incompatible
-	github.com/googleapis/gnostic => github.com/googleapis/gnostic v0.3.0
 	google.golang.org/genproto => google.golang.org/genproto v0.0.0-20191230161307-f3c370f40bfb
 	google.golang.org/grpc => google.golang.org/grpc v1.26.0
 	k8s.io/client-go => k8s.io/client-go v0.19.1
