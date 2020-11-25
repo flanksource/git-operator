@@ -112,6 +112,13 @@ func serve(c echo.Context, r *GitopsAPIReconciler) error {
 		return c.String(http.StatusInternalServerError, err.Error())
 	}
 
+	prettyYaml, err := yaml.Marshall(obj.Object)
+	if err != nil {
+		r.Log.Error(err, "error marshalling to yaml, falling back to plaintext")
+	} else {
+		body = prettyYaml
+	}
+
 	r.Log.Info("Received", "name", name, "namespace", namespace, "body", obj.GetName())
 
 	kustomizationPath, err := text.Template(api.Spec.Kustomization, obj.Object)
