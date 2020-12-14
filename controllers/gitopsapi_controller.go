@@ -133,7 +133,15 @@ func serve(c echo.Context, r *GitopsAPIReconciler) error {
 	}
 
 	existing, err := fs.Open(kustomizationPath)
-	existingKustomization, _ := ioutil.ReadAll(existing)
+	if err != nil {
+		r.Log.Error(err, "error opening kustomization file", "path", kustomizationPath)
+		return c.String(http.StatusInternalServerError, err.Error())
+	}
+	existingKustomization, err := ioutil.ReadAll(existing)
+	if err != nil {
+		r.Log.Error(err, "error reading kustomization file", "path", kustomizationPath)
+		return c.String(http.StatusInternalServerError, err.Error())
+	}
 	kustomization := types.Kustomization{}
 	if err := yaml.Unmarshal(existingKustomization, &kustomization); err != nil {
 		r.Log.Error(err, "error unmarshalling kustomization")
