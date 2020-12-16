@@ -1,0 +1,63 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: git-operator-ing
+  namespace: platform-system
+  annotations:
+    kubernetes.io/tls-acme: "true"
+spec:
+  tls:
+    - secretName: git-operator-tls
+      hosts:
+        - git-operator.127.0.0.1.nip.io
+  rules:
+    - host: git-operator.127.0.0.1.nip.io
+      http:
+        paths:
+          - backend:
+              serviceName: git-operator
+              servicePort: 8888
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: platform-system
+  labels:
+    control-plane: git-operator
+  name: git-operator
+spec:
+  selector:
+    control-plane: git-operator
+  ports:
+    - port: 8888
+      targetPort: 8888
+---
+apiVersion: git.flanksource.com/v1
+kind: GitopsAPI
+metadata:
+  name: configmap-add
+  namespace: platform-system
+spec:
+  gitRepository: https://github.com/flanksource/git-operator-test.git
+  path: spec/configmaps/{{.metadata.name}}.yaml
+  kustomization: spec/configmaps/kustomization.yaml
+  pullRequest: true
+  reviewers: ["flankbot"]
+  secretRef:
+    name: github-token
+  tokenRef:
+    name: configmap-add-token
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: configmap-add-token
+  namespace: platform-system
+stringData:
+  TOKEN: "abcdefgh12345"
+---
+# kubectl create secret generic github-token -n platform-system --from-literal=GITHUB_TOKEN=$GITHUB_TOKEN
+
+# Example api call:
+
+# curl -XPOST -k -v --data "{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"config1\",\"namespace\":\"platform-system\"},\"data\":{\"foo\":\"bar\"}}" -H "Content-Type: application/json" "https://git-operator.127.0.0.1.nip.io/platform-system/configmap-add?token=abcdefgh12345"

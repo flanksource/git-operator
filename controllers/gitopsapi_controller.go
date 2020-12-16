@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	gitv5 "github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-logr/logr"
 	"github.com/labstack/echo"
@@ -42,6 +44,7 @@ import (
 	"sigs.k8s.io/kustomize/api/types"
 
 	"github.com/flanksource/commons/text"
+	"github.com/flanksource/commons/utils"
 	gitv1 "github.com/flanksource/git-operator/api/v1"
 	"github.com/flanksource/git-operator/connectors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -105,6 +108,18 @@ func serve(c echo.Context, r *GitopsAPIReconciler) error {
 		r.Log.Error(err, "error cloning")
 		return c.String(http.StatusInternalServerError, err.Error())
 	}
+
+	timestamp := utils.ShortTimestamp()
+	defaultBranch := api.Spec.Branch
+	if defaultBranch == "" {
+		defaultBranch = "master"
+	}
+	branchName := fmt.Sprintf("automated-update-%s", timestamp)
+
+	if api.Spec.PullRequest {
+		work.Checkout(&gitv5.CheckoutOptions{Branch: plumbing.NewBranchReferenceName(branchName), Create: true})
+	}
+
 	obj := unstructured.Unstructured{Object: make(map[string]interface{})}
 	body, _ := ioutil.ReadAll(c.Request().Body)
 	if err := json.Unmarshal(body, &obj.Object); err != nil {
@@ -179,6 +194,20 @@ func serve(c echo.Context, r *GitopsAPIReconciler) error {
 	if err := git.Push(ctx); err != nil {
 		r.Log.Error(err, "error pushing")
 		return c.String(http.StatusInternalServerError, err.Error())
+	}
+
+	if api.Spec.PullRequest {
+		pr := connectors.PullRequest{
+			Title:     fmt.Sprintf("Automated update %s", timestamp),
+			Body:      fmt.Sprintf("Added resource `%s/%s/%s` in `%s`", obj.GetKind(), obj.GetNamespace(), obj.GetName(), contentPath),
+			Head:      branchName,
+			Base:      defaultBranch,
+			Reviewers: api.Spec.Reviewers,
+		}
+		if err := git.CreatePullRequest(ctx, pr); err != nil {
+			r.Log.Error(err, "error creating pull request")
+			return c.String(http.StatusInternalServerError, err.Error())
+		}
 	}
 
 	return c.String(http.StatusAccepted, "Committed "+hash.String())

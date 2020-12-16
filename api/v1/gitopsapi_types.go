@@ -32,7 +32,7 @@ type GitopsAPISpec struct {
 	Tags          []string `json:"gitTags,omitempty"`
 	Assignee      []string `json:"gitAssignee,omitempty"`
 	Branch        string   `json:"branch,omitempty"`
-	PullRequest   bool     `json:"pull_request,omitempty"`
+	PullRequest   bool     `json:"pullRequest,omitempty"`
 
 	// The secret name containing the Git credentials.
 	// For SSH repositories the secret must contain SSH_PRIVATE_KEY, SSH_PRIVATE_KEY_PASSORD
@@ -45,6 +45,9 @@ type GitopsAPISpec struct {
 	// Must contain a key called TOKEN
 	// +optional
 	TokenRef *corev1.LocalObjectReference `json:"tokenRef,omitempty"`
+
+	// List of github users which should approve the namespace request
+	Reviewers []string `json:"reviewers,omitempty"`
 
 	// The path to a kustomization file to insert or remove the resource, can included templated values .e.g `specs/clusters/{{.cluster}}/kustomization.yaml`
 	// +required
