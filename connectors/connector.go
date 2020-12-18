@@ -20,6 +20,7 @@ type Connector interface {
 	ReconcilePullRequests(ctx context.Context, repository *gitv1.GitRepository) error
 	Clone(ctx context.Context, branch string) (billy.Filesystem, *git.Worktree, error)
 	Push(ctx context.Context) error
+	CreatePullRequest(ctx context.Context, pr PullRequest) error
 }
 
 func NewConnector(ctx context.Context, crdClient client.Client, k8sClient *kubernetes.Clientset, log logr.Logger, namespace string, url string, secretRef *v1.LocalObjectReference) (Connector, error) {

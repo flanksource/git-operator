@@ -15,6 +15,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+type PullRequest struct {
+	Repository string
+	Title      string
+	Body       string
+	Base       string
+	Head       string
+	Reviewers  []string
+}
+
 type PullRequestDiff struct {
 	client.Client
 	Log          logr.Logger

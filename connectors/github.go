@@ -1,6 +1,7 @@
 package connectors
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -16,11 +17,11 @@ import (
 	"github.com/jenkins-x/go-scm/scm"
 	"github.com/jenkins-x/go-scm/scm/factory"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type Github struct {
-	client   *scm.Client
 	k8sCrd   client.Client
 	log      logr.Logger
 	scm      *scm.Client
@@ -193,6 +194,32 @@ func (g *Github) ReconcilePullRequests(ctx context.Context, repository *gitv1.Gi
 	for _, crd := range inK8sWithoutID {
 		if err := diff.Merge(ctx, nil, crd); err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+func (g *Github) CreatePullRequest(ctx context.Context, pr PullRequest) error {
+	prRequest := &scm.PullRequestInput{
+		Title: pr.Title,
+		Body:  pr.Body,
+		Base:  pr.Base,
+		Head:  pr.Head,
+	}
+	repoName := fmt.Sprintf("%s/%s", g.owner, g.repoName)
+	ghPR, response, err := g.scm.PullRequests.Create(ctx, repoName, prRequest)
+	if err != nil {
+		buf := new(bytes.Buffer)
+		buf.ReadFrom(response.Body)
+		log.Errorf("Github status code: %d", response.Status)
+		log.Errorf("Github response:\n [%s]", buf.String())
+		return errors.Wrap(err, "failed to create PullRequest in Github")
+	}
+
+	if len(pr.Reviewers) > 0 {
+		if _, err = g.scm.PullRequests.RequestReview(ctx, repoName, ghPR.Number, pr.Reviewers); err != nil {
+			return errors.Wrap(err, "failed to add reviewers to Github PullRequest")
 		}
 	}
 

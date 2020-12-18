@@ -117,6 +117,10 @@ func (g *GitSSH) ReconcilePullRequests(ctx context.Context, repository *gitv1.Gi
 	return nil
 }
 
+func (g *GitSSH) CreatePullRequest(ctx context.Context, pr PullRequest) error {
+	return errors.Errorf("pull request for git/ssh not supported")
+}
+
 func (g *GitSSH) GetBranchCRDsFromRemote(ctx context.Context, repository *gitv1.GitRepository) ([]gitv1.GitBranch, error) {
 	r, err := git.Clone(memory.NewStorage(), nil, &git.CloneOptions{
 		URL:  g.url,
