@@ -1,0 +1,112 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.4.0
+  creationTimestamp: null
+  name: gitops.git.flanksource.com
+spec:
+  group: git.flanksource.com
+  names:
+    kind: GitOps
+    listKind: GitOpsList
+    plural: gitops
+    singular: gitops
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: GitOps is the Schema for the gitops API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: GitOpsSpec defines the desired state of GitOps
+            properties:
+              args:
+                additionalProperties:
+                  type: string
+                description: a map of args to pass to flux without -- prepended. See
+                  [fluxd](https://docs.fluxcd.io/en/1.19.0/references/daemon/) for
+                  a full list
+                type: object
+              disableScanning:
+                description: 'Do not scan container image registries to fill in the
+                  registry cache, implies `--git-read-only` (default: true)'
+                type: boolean
+              fluxVersion:
+                description: 'The version to use for flux (default: 1.9.0 )'
+                type: string
+              gitBranch:
+                description: 'The git branch to use (default: `master`)'
+                type: string
+              gitKey:
+                description: 'The Kubernetes secret to use for cloning, if it does
+                  not exist it will be generated (default: `flux-$name-git-deploy`)'
+                type: string
+              gitPath:
+                description: 'The path with in the git repository to look for YAML
+                  in (default: `.`)'
+                type: string
+              gitPollInterval:
+                description: 'The frequency with which to fetch the git repository
+                  (default: `5m0s`)'
+                type: string
+              gitUrl:
+                description: The URL to git repository to clone
+                type: string
+              helmOperatorVersion:
+                description: 'The version to use for flux (default: 1.9.0 )'
+                type: string
+              knownHosts:
+                description: The contents of the known_hosts file to mount into Flux
+                  and helm-operator
+                type: string
+              name:
+                description: The name of the gitops deployment, defaults to namespace
+                  name
+                type: string
+              namespace:
+                description: The namespace to deploy the GitOps operator into, if
+                  empty then it will be deployed cluster-wide into kube-system
+                type: string
+              sshConfig:
+                description: The contents of the ~/.ssh/config file to mount into
+                  Flux and helm-operator
+                type: string
+              syncInterval:
+                description: 'The frequency with which to sync the manifests in the
+                  repository to the cluster (default: `5m0s`)'
+                type: string
+            required:
+            - gitUrl
+            type: object
+          status:
+            description: GitOpsStatus defines the observed state of GitOps
+            properties:
+              lastUpdated:
+                format: date-time
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
