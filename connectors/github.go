@@ -211,7 +211,9 @@ func (g *Github) CreatePullRequest(ctx context.Context, pr PullRequest) error {
 	ghPR, response, err := g.scm.PullRequests.Create(ctx, repoName, prRequest)
 	if err != nil {
 		buf := new(bytes.Buffer)
-		buf.ReadFrom(response.Body)
+		if _, err := buf.ReadFrom(response.Body); err != nil {
+			log.Errorf("Error reading the response body: %v", err)
+		}
 		log.Errorf("Github status code: %d", response.Status)
 		log.Errorf("Github response:\n [%s]", buf.String())
 		return errors.Wrap(err, "failed to create PullRequest in Github")

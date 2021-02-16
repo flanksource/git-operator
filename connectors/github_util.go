@@ -20,8 +20,8 @@ type GithubFetcher struct {
 }
 
 func (g *GithubFetcher) BuildPRCRDsFromGithub(ctx context.Context, lastUpdated time.Time) ([]gitv1.GitPullRequest, error) {
-	crdPRs := []gitv1.GitPullRequest{}
-	repoName := g.repositoryName(g.repository)
+	var crdPRs []gitv1.GitPullRequest
+	repoName := g.repositoryName()
 
 	prs, _, err := g.client.PullRequests.List(ctx, repoName, scm.PullRequestListOptions{UpdatedAfter: &lastUpdated})
 	if err != nil {
@@ -40,7 +40,7 @@ func (g *GithubFetcher) BuildPRCRDsFromGithub(ctx context.Context, lastUpdated t
 }
 
 func (g *GithubFetcher) BuildPRCRDFromGithub(ctx context.Context, pr *scm.PullRequest, lastUpdated time.Time) (*gitv1.GitPullRequest, error) {
-	repositoryName := g.repositoryName(g.repository)
+	repositoryName := g.repositoryName()
 	reviewers := []string{}
 	approvers := map[string]bool{}
 
@@ -91,7 +91,7 @@ func (g *GithubFetcher) BuildPRCRDFromGithub(ctx context.Context, pr *scm.PullRe
 
 func (g *GithubFetcher) BuildBranchCRDsFromGithub(ctx context.Context, lastUpdated time.Time) ([]gitv1.GitBranch, error) {
 	crdBranches := []gitv1.GitBranch{}
-	repoName := g.repositoryName(g.repository)
+	repoName := g.repositoryName()
 
 	branches, _, err := g.client.Git.ListBranches(ctx, repoName, scm.ListOptions{})
 	if err != nil {
@@ -110,7 +110,7 @@ func (g *GithubFetcher) BuildBranchCRDsFromGithub(ctx context.Context, lastUpdat
 }
 
 func (g *GithubFetcher) BuildBranchCRDFromGithub(ctx context.Context, branch *scm.Reference, lastUpdated time.Time) (*gitv1.GitBranch, error) {
-	repositoryName := g.repositoryName(g.repository)
+	repositoryName := g.repositoryName()
 
 	crd := gitv1.GitBranch{
 		ObjectMeta: metav1.ObjectMeta{
@@ -134,7 +134,7 @@ func (g *GithubFetcher) BuildBranchCRDFromGithub(ctx context.Context, branch *sc
 	return &crd, nil
 }
 
-func (g *GithubFetcher) repositoryName(r gitv1.GitRepository) string {
+func (g *GithubFetcher) repositoryName() string {
 	return fmt.Sprintf("%s/%s", g.owner, g.repoName)
 }
 
