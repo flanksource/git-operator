@@ -47,7 +47,3 @@ var (
 	// Serializer provides high-level encoding/decoding functions
 	Serializer = serializer.NewSerializer(Scheme, &codecs)
 )
-
-func init() {
-	AddToScheme(Scheme)
-}

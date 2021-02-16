@@ -24,6 +24,7 @@ import (
 	zapu "go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -44,9 +45,9 @@ var (
 )
 
 func init() {
-	_ = clientgoscheme.AddToScheme(scheme)
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	_ = gitv1.AddToScheme(scheme)
+	utilruntime.Must(gitv1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 

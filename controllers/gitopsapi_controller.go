@@ -117,7 +117,9 @@ func serve(c echo.Context, r *GitopsAPIReconciler) error {
 	branchName := fmt.Sprintf("automated-update-%s", timestamp)
 
 	if api.Spec.PullRequest {
-		work.Checkout(&gitv5.CheckoutOptions{Branch: plumbing.NewBranchReferenceName(branchName), Create: true})
+		if err := work.Checkout(&gitv5.CheckoutOptions{Branch: plumbing.NewBranchReferenceName(branchName), Create: true}); err != nil {
+			return err
+		}
 	}
 
 	obj := unstructured.Unstructured{Object: make(map[string]interface{})}
@@ -127,7 +129,7 @@ func serve(c echo.Context, r *GitopsAPIReconciler) error {
 		return c.String(http.StatusInternalServerError, err.Error())
 	}
 
-	prettyYaml, err := yaml.Marshall(obj.Object)
+	prettyYaml, err := yaml.Marshal(obj.Object)
 	if err != nil {
 		r.Log.Error(err, "error marshalling to yaml, falling back to plaintext")
 	} else {
@@ -225,7 +227,7 @@ func copy(data []byte, path string, fs billy.Filesystem, work *gitv5.Worktree) e
 	if err != nil {
 		return errors.Wrap(err, "failed to open")
 	}
-	src := bytes.NewBuffer([]byte(data))
+	src := bytes.NewBuffer(data)
 	if _, err := io.Copy(dst, src); err != nil {
 		return errors.Wrap(err, "failed to copy")
 	}
@@ -248,9 +250,11 @@ func (r *GitopsAPIReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	r.Clientset = clientset
 	r.Client = mgr.GetClient()
-	ctrl.NewControllerManagedBy(mgr).
+	if err := ctrl.NewControllerManagedBy(mgr).
 		For(&gitv1.GitopsAPI{}).
-		Complete(r)
+		Complete(r); err != nil {
+		return err
+	}
 	e := echo.New()
 	e.POST("/:namespace/:name/:token", func(c echo.Context) error {
 		return serve(c, r)
@@ -263,5 +267,4 @@ func (r *GitopsAPIReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}()
 
 	return nil
-
 }

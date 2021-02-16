@@ -6,7 +6,6 @@ import (
 	"os"
 
 	gitv1 "github.com/flanksource/git-operator/api/v1"
-	v1 "github.com/flanksource/git-operator/api/v1"
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-billy/v5/memfs"
 	git "github.com/go-git/go-git/v5"
@@ -44,6 +43,9 @@ func (g *GitSSH) Clone(ctx context.Context, branch string) (billy.Filesystem, *g
 		Progress: os.Stdout,
 		Auth:     g.auth,
 	})
+	if err != nil {
+		return nil, nil, err
+	}
 
 	work, err := repo.Worktree()
 	if err != nil {
@@ -145,9 +147,9 @@ func (g *GitSSH) GetBranchCRDsFromRemote(ctx context.Context, repository *gitv1.
 		return nil, errors.Wrap(err, "failed to list branches")
 	}
 
-	branches := []v1.GitBranch{}
+	branches := []gitv1.GitBranch{}
 
-	branchesIter.ForEach(func(ref *plumbing.Reference) error {
+	if err := branchesIter.ForEach(func(ref *plumbing.Reference) error {
 		// Ignore HEAD
 		if ref.Name().Short() == "HEAD" {
 			return nil
@@ -155,7 +157,9 @@ func (g *GitSSH) GetBranchCRDsFromRemote(ctx context.Context, repository *gitv1.
 		branch := g.GetBranchCRDFromRemote(repository, ref)
 		branches = append(branches, branch)
 		return nil
-	})
+	}); err != nil {
+		return nil, err
+	}
 
 	return branches, nil
 }

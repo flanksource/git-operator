@@ -58,7 +58,7 @@ func NewConnector(ctx context.Context, crdClient client.Client, k8sClient *kuber
 		if !found {
 			password = []byte{}
 		}
-		return NewGitSSH(crdClient, log, sshURL, string(user), privateKey, string(password))
+		return NewGitSSH(crdClient, log, sshURL, user, privateKey, string(password))
 	}
 	return nil, errors.New("no connector settings found")
 }
