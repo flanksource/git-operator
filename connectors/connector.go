@@ -18,9 +18,9 @@ import (
 type Connector interface {
 	ReconcileBranches(ctx context.Context, repository *gitv1.GitRepository) error
 	ReconcilePullRequests(ctx context.Context, repository *gitv1.GitRepository) error
-	Clone(ctx context.Context, branch string) (billy.Filesystem, *git.Worktree, error)
-	Push(ctx context.Context) error
-	CreatePullRequest(ctx context.Context, pr PullRequest) error
+	Clone(ctx context.Context, branch, local string) (billy.Filesystem, *git.Worktree, error)
+	Push(ctx context.Context, branch string) error
+	OpenPullRequest(ctx context.Context, base string, head string, spec *gitv1.PullRequestTemplate) (int, error)
 }
 
 func NewConnector(ctx context.Context, crdClient client.Client, k8sClient *kubernetes.Clientset, log logr.Logger, namespace string, url string, secretRef *v1.LocalObjectReference) (Connector, error) {

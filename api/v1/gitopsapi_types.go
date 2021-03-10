@@ -26,13 +26,16 @@ type GitopsAPISpec struct {
 	// The repository URL, can be a HTTP or SSH address.
 	// +kubebuilder:validation:Pattern="^(http|https|ssh)://"
 	// +required
-	GitRepository string   `json:"gitRepository,omitempty"`
-	GitUser       string   `json:"gitUser,omitempty"`
-	GitEmail      string   `json:"gitEmail,omitempty"`
-	Tags          []string `json:"gitTags,omitempty"`
-	Assignee      []string `json:"gitAssignee,omitempty"`
-	Branch        string   `json:"branch,omitempty"`
-	PullRequest   bool     `json:"pullRequest,omitempty"`
+	GitRepository string `json:"gitRepository,omitempty"`
+	GitUser       string `json:"gitUser,omitempty"`
+	GitEmail      string `json:"gitEmail,omitempty"`
+	// The branch to use as a baseline for the new branch, defaults to master
+	Base string `json:"branch,omitempty"`
+	// The branch to push updates back to, defaults to master
+	Branch string `json:"branch,omitempty"`
+
+	// Open a new Pull request from the branch back to the base
+	PullRequest *PullRequestTemplate `json:"pullRequest,omitempty"`
 
 	// The secret name containing the Git credentials.
 	// For SSH repositories the secret must contain SSH_PRIVATE_KEY, SSH_PRIVATE_KEY_PASSORD
@@ -56,6 +59,14 @@ type GitopsAPISpec struct {
 	// The path to save the resource into, should including templating to make it unique per cluster/namespace/kind/name tuple e.g. `specs/clusters/{{.cluster}}/{{.name}}.yaml`
 	// +required
 	Path string `json:"path,omitempty"`
+}
+
+type PullRequestTemplate struct {
+	Body      string   `json:"body,omitempty"`
+	Title     string   `json:"title,omitempty"`
+	Reviewers []string `json:"reviewers,omitempty"`
+	Assignees []string `json:"assignees,omitempty"`
+	Tags      []string `json:"tags,omitempty"`
 }
 
 // GitopsAPIStatus defines the observed state of GitopsAPI

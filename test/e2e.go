@@ -1,22 +1,26 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
-	"path/filepath"
 	"strconv"
 	"time"
 
 	"github.com/flanksource/commons/console"
 	"github.com/flanksource/commons/utils"
 	gitv1 "github.com/flanksource/git-operator/api/v1"
+	"github.com/flanksource/git-operator/connectors"
+	"github.com/flanksource/git-operator/controllers"
 	"github.com/google/go-github/v32/github"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
+	zapu "go.uber.org/zap"
 	"golang.org/x/oauth2"
 	"gopkg.in/yaml.v2"
+	v1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -26,8 +30,10 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	ctrl "sigs.k8s.io/controller-runtime"
 	crdclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 const (
@@ -45,8 +51,10 @@ var (
 		"github-branch-sync":      TestGithubBranchSync,
 		"github-pr-github-sync":   TestGithubPRSync,
 		"github-pr-crd-sync":      TestGithubPRCRDSync,
+		"github-gitops-api":       TestGitopsAPI,
 	}
 	scheme              = runtime.NewScheme()
+	log                 = ctrl.Log.WithName("e2e")
 	restConfig          *rest.Config
 	pullRequestUsername string
 )
@@ -59,14 +67,26 @@ func init() {
 }
 
 func main() {
-	var kubeconfig *string
 	var timeout *time.Duration
 	var err error
-	if home := homeDir(); home != "" {
-		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-	} else {
-		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+	ctrl.SetLogger(zap.New(zap.UseDevMode(true), zap.Level(zapu.DebugLevel)))
+
+	kubeconfig := os.Getenv("KUBECONFIG")
+	if kubeconfig == "" {
+		kubeconfig = os.ExpandEnv("$HOME/.kube/config")
 	}
+
+	data, err := ioutil.ReadFile(kubeconfig)
+	if err != nil {
+		log.Error(err, "failed to read kubeconfig")
+		os.Exit(1)
+	}
+	restConfig, err := clientcmd.RESTConfigFromKubeConfig(data)
+	if err != nil {
+		log.Error(err, "failed to create clientset")
+		os.Exit(1)
+	}
+
 	timeout = flag.Duration("timeout", 10*time.Minute, "Global timeout for all tests")
 	flag.Parse()
 
@@ -74,23 +94,25 @@ func main() {
 
 	utilruntime.Must(gitv1.AddToScheme(scheme))
 
-	// use the current context in kubeconfig
-	restConfig, err = clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	if err != nil {
-		log.Fatalf("failed to create k8s config: %v", err)
+		log.Error(err, "failed to create k8s config")
+		os.Exit(1)
 	}
 
 	k8s, err = kubernetes.NewForConfig(restConfig)
 	if err != nil {
-		log.Fatalf("failed to create clientset: %v", err)
+		log.Error(err, "failed to create clientset")
+		os.Exit(1)
 	}
 
 	mapper, err := apiutil.NewDynamicRESTMapper(restConfig)
 	if err != nil {
-		log.Fatalf("failed to create mapper: %v", err)
+		log.Error(err, "failed to create mapper")
+		os.Exit(1)
 	}
 	if crdK8s, err = crdclient.New(restConfig, crdclient.Options{Scheme: scheme, Mapper: mapper}); err != nil {
-		log.Errorf("Error in creating the client: %v", err)
+		log.Error(err, "failed to create mapper")
+		os.Exit(1)
 	}
 
 	test := &console.TestResults{
@@ -102,6 +124,7 @@ func main() {
 	defer cancelFunc()
 
 	for name, t := range tests {
+		log.Info("testing", "name", name)
 		err := t(deadline, test)
 		if err != nil {
 			errors[name] = err
@@ -109,13 +132,49 @@ func main() {
 	}
 
 	if len(errors) > 0 {
-		for name, err := range errors {
-			log.Errorf("test %s failed: %v", name, err)
+		for _, err := range errors {
+			log.Info(err.Error())
 		}
 		os.Exit(1)
 	}
 
-	log.Infof("All tests passed !!!")
+	log.Info("All tests passed !!!")
+}
+
+func TestGitopsAPI(ctx context.Context, test *console.TestResults) error {
+	git, err := connectors.NewConnector(ctx, crdK8s, k8s, log, "platform-system", "https://github.com/"+repository, &v1.LocalObjectReference{
+		Name: "github",
+	})
+	if err != nil {
+		return err
+	}
+
+	body := fmt.Sprintf(`
+	{
+		"apiVersion": "acmp.corp/v1",
+		"kind": "NamespaceRequest",
+		"metadata": {
+			"name": "%s"
+		},
+		"spec": {
+			"cpu": 4,
+			"memory": 32
+		 }
+	}
+	`, getBranchName("test"))
+
+	log.Info("json", "value", body)
+	_, _, err = controllers.HandleGitopsAPI(ctx, log, git, gitv1.GitopsAPI{
+		Spec: gitv1.GitopsAPISpec{
+			GitRepository: repository,
+			Branch:        "{{.metadata.name}}",
+			PullRequest: &gitv1.PullRequestTemplate{
+				Title: "New Automated PR - {{.metadata.name}}",
+				Body:  "Somebody created a new PR {{.metadata.name}}",
+			},
+		},
+	}, bytes.NewReader([]byte(body)))
+	return err
 }
 
 func TestGitOperatorIsRunning(ctx context.Context, test *console.TestResults) error {
@@ -169,7 +228,7 @@ func TestGithubBranchSync(ctx context.Context, test *console.TestResults) error 
 
 	defer func() {
 		if err := crdK8s.Delete(context.Background(), gitBranch); err != nil {
-			log.Errorf("failed to delete GitBranch %s in namespace %s", gitBranch.Name, namespace)
+			log.Error(err, "failed to delete GitBranch %s in namespace %s", gitBranch.Name, namespace)
 		}
 	}()
 
@@ -241,7 +300,7 @@ func TestGithubPRSync(ctx context.Context, test *console.TestResults) error {
 
 	defer func() {
 		if err := crdK8s.Delete(context.Background(), gitPR); err != nil {
-			log.Errorf("failed to delete GitPullRequest %s in namespace %s", gitPR.Name, namespace)
+			log.Error(err, "failed to delete GitPullRequest", "pr", gitPR.Name, "namespace", namespace)
 		}
 		branchCrd := &gitv1.GitBranch{
 			TypeMeta: metav1.TypeMeta{Kind: "GitBranch", APIVersion: "git.flanksource.com/v1"},
@@ -251,7 +310,7 @@ func TestGithubPRSync(ctx context.Context, test *console.TestResults) error {
 			},
 		}
 		if err := crdK8s.Delete(context.Background(), branchCrd); err != nil {
-			log.Errorf("failed to delete GitBranch %s in namespace %s", branchCrd.Name, namespace)
+			log.Error(err, "failed to delete GitBranch", "branch", branchCrd.Name, "namespace", namespace)
 		}
 	}()
 
@@ -329,7 +388,7 @@ func TestGithubPRCRDSync(ctx context.Context, test *console.TestResults) error {
 
 	defer func() {
 		if err := crdK8s.Delete(context.Background(), updatedPRCrd); err != nil {
-			log.Errorf("failed to delete GitPullRequest %s in namespace %s", updatedPRCrd.Name, namespace)
+			log.Error(err, "failed to delete GitPullRequest", "pr", updatedPRCrd.Name)
 		}
 		branchCrd := &gitv1.GitBranch{
 			TypeMeta: metav1.TypeMeta{Kind: "GitBranch", APIVersion: "git.flanksource.com/v1"},
@@ -339,7 +398,7 @@ func TestGithubPRCRDSync(ctx context.Context, test *console.TestResults) error {
 			},
 		}
 		if err := crdK8s.Delete(context.Background(), branchCrd); err != nil {
-			log.Errorf("failed to delete GitBranch %s in namespace %s", branchCrd.Name, namespace)
+			log.Error(err, "failed to delete GitBranch", "branch", branchCrd.Name)
 		}
 	}()
 
@@ -354,7 +413,7 @@ func waitForGitBranch(ctx context.Context, crdName string) (*gitv1.GitBranch, er
 		err := crdK8s.Get(ctx, types.NamespacedName{Name: crdName, Namespace: namespace}, gitBranch)
 		if err != nil {
 			if kerrors.IsNotFound(err) {
-				log.Debugf("GitBranch %s in namespace %s does not exist", crdName, namespace)
+				log.Info("GitBranch %s in namespace %s does not exist", crdName, namespace)
 				time.Sleep(2 * time.Second)
 				continue
 			}
@@ -370,7 +429,7 @@ func waitForGitPullRequest(ctx context.Context, crdName string) (*gitv1.GitPullR
 		err := crdK8s.Get(ctx, types.NamespacedName{Name: crdName, Namespace: namespace}, gitPR)
 		if err != nil {
 			if kerrors.IsNotFound(err) {
-				log.Debugf("GitPullRequest %s in namespace %s does not exist", crdName, namespace)
+				log.Info("GitPullRequest %s in namespace %s does not exist", crdName, namespace)
 				time.Sleep(2 * time.Second)
 				continue
 			}
@@ -396,10 +455,10 @@ func waitForGitPullRequestFromCrd(ctx context.Context, branchName string) (*gith
 			return nil, err
 		}
 		if len(prList) > 0 {
-			log.Debugf("Found PullRequest #%d with title %s", *prList[0].Number, *prList[0].Title)
+			log.Info("Found PullRequest #%d with title %s", *prList[0].Number, *prList[0].Title)
 			return prList[0], nil
 		}
-		log.Debugf("Github PullRequest for branch %s does not exist", branchName)
+		log.Info("Github PullRequest for branch %s does not exist", branchName)
 		time.Sleep(2 * time.Second)
 	}
 }
@@ -485,13 +544,6 @@ func getBranchName(baseName string) string {
 	date := time.Now().Format("20060201150405")
 	hash := utils.RandomString(4)
 	return fmt.Sprintf("%s-%s-%s", baseName, date, hash)
-}
-
-func homeDir() string {
-	if h := os.Getenv("HOME"); h != "" {
-		return h
-	}
-	return os.Getenv("USERPROFILE") // windows
 }
 
 func githubClient(ctx context.Context) (*github.Client, error) {

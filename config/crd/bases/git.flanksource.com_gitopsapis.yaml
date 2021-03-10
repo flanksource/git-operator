@@ -1,4 +1,3 @@
-
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -16,88 +15,108 @@ spec:
     singular: gitopsapi
   scope: Namespaced
   versions:
-  - name: v1
-    schema:
-      openAPIV3Schema:
-        description: GitopsAPI is the Schema for the gitopsapis API
-        properties:
-          apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
-            type: string
-          kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
-            type: string
-          metadata:
-            type: object
-          spec:
-            description: GitopsAPISpec defines the desired state of GitopsAPI
-            properties:
-              branch:
-                type: string
-              gitAssignee:
-                items:
+    - name: v1
+      schema:
+        openAPIV3Schema:
+          description: GitopsAPI is the Schema for the gitopsapis API
+          properties:
+            apiVersion:
+              description:
+                "APIVersion defines the versioned schema of this representation
+                of an object. Servers should convert recognized schemas to the latest
+                internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources"
+              type: string
+            kind:
+              description:
+                "Kind is a string value representing the REST resource this
+                object represents. Servers may infer this from the endpoint the client
+                submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds"
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: GitopsAPISpec defines the desired state of GitopsAPI
+              properties:
+                branch:
+                  description: The branch to push updates back to, defaults to master
                   type: string
-                type: array
-              gitEmail:
-                type: string
-              gitRepository:
-                description: The repository URL, can be a HTTP or SSH address.
-                pattern: ^(http|https|ssh)://
-                type: string
-              gitTags:
-                items:
+                gitEmail:
                   type: string
-                type: array
-              gitUser:
-                type: string
-              kustomization:
-                description: The path to a kustomization file to insert or remove
-                  the resource, can included templated values .e.g `specs/clusters/{{.cluster}}/kustomization.yaml`
-                type: string
-              path:
-                description: The path to save the resource into, should including
-                  templating to make it unique per cluster/namespace/kind/name tuple
-                  e.g. `specs/clusters/{{.cluster}}/{{.name}}.yaml`
-                type: string
-              pullRequest:
-                type: boolean
-              reviewers:
-                description: List of github users which should approve the namespace
-                  request
-                items:
+                gitRepository:
+                  description: The repository URL, can be a HTTP or SSH address.
+                  pattern: ^(http|https|ssh)://
                   type: string
-                type: array
-              secretRef:
-                description: The secret name containing the Git credentials. For SSH
-                  repositories the secret must contain SSH_PRIVATE_KEY, SSH_PRIVATE_KEY_PASSORD
-                  For Github repositories it must contain GITHUB_TOKEN
-                properties:
-                  name:
-                    description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                      TODO: Add other useful fields. apiVersion, kind, uid?'
+                gitUser:
+                  type: string
+                kustomization:
+                  description:
+                    The path to a kustomization file to insert or remove
+                    the resource, can included templated values .e.g `specs/clusters/{{.cluster}}/kustomization.yaml`
+                  type: string
+                path:
+                  description:
+                    The path to save the resource into, should including
+                    templating to make it unique per cluster/namespace/kind/name tuple
+                    e.g. `specs/clusters/{{.cluster}}/{{.name}}.yaml`
+                  type: string
+                pullRequest:
+                  description: Open a new Pull request from the branch back to the base
+                  properties:
+                    assignees:
+                      items:
+                        type: string
+                      type: array
+                    body:
+                      type: string
+                    reviewers:
+                      items:
+                        type: string
+                      type: array
+                    tags:
+                      items:
+                        type: string
+                      type: array
+                    title:
+                      type: string
+                  type: object
+                reviewers:
+                  description:
+                    List of github users which should approve the namespace
+                    request
+                  items:
                     type: string
-                type: object
-              tokenRef:
-                description: 'The secret name containing the static credential to
-                  authenticate agaist either as a `Authorization: Bearer` header or
-                  as a `?token=` argument Must contain a key called TOKEN'
-                properties:
-                  name:
-                    description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                      TODO: Add other useful fields. apiVersion, kind, uid?'
-                    type: string
-                type: object
-            type: object
-          status:
-            description: GitopsAPIStatus defines the observed state of GitopsAPI
-            type: object
-        type: object
-    served: true
-    storage: true
+                  type: array
+                secretRef:
+                  description:
+                    The secret name containing the Git credentials. For SSH
+                    repositories the secret must contain SSH_PRIVATE_KEY, SSH_PRIVATE_KEY_PASSORD
+                    For Github repositories it must contain GITHUB_TOKEN
+                  properties:
+                    name:
+                      description:
+                        "Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        TODO: Add other useful fields. apiVersion, kind, uid?"
+                      type: string
+                  type: object
+                tokenRef:
+                  description:
+                    "The secret name containing the static credential to
+                    authenticate agaist either as a `Authorization: Bearer` header or
+                    as a `?token=` argument Must contain a key called TOKEN"
+                  properties:
+                    name:
+                      description:
+                        "Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        TODO: Add other useful fields. apiVersion, kind, uid?"
+                      type: string
+                  type: object
+              type: object
+            status:
+              description: GitopsAPIStatus defines the observed state of GitopsAPI
+              type: object
+          type: object
+      served: true
+      storage: true
 status:
   acceptedNames:
     kind: ""
