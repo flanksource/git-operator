@@ -458,7 +458,7 @@ func waitForGitPullRequestFromCrd(ctx context.Context, branchName string) (*gith
 			log.Info("Found PullRequest #%d with title %s", *prList[0].Number, *prList[0].Title)
 			return prList[0], nil
 		}
-		log.Info("Github PullRequest for branch %s does not exist", branchName)
+		log.Info("Github PullRequest for branch %s does not exist", "branch", branchName)
 		time.Sleep(2 * time.Second)
 	}
 }
