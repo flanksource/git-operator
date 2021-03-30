@@ -34,6 +34,10 @@ func (g *GitSSH) OpenPullRequest(ctx context.Context, base string, head string, 
 	return 0, fmt.Errorf("open pull request  not implemented for git ssh")
 }
 
+func (g *GitSSH) ClosePullRequest(ctx context.Context, id int) error {
+	return fmt.Errorf("close pull request  not implemented for git ssh")
+}
+
 func (g *GitSSH) Push(ctx context.Context, branch string) error {
 	return fmt.Errorf("push not implemented for git ssh")
 }

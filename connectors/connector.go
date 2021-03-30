@@ -21,6 +21,7 @@ type Connector interface {
 	Clone(ctx context.Context, branch, local string) (billy.Filesystem, *git.Worktree, error)
 	Push(ctx context.Context, branch string) error
 	OpenPullRequest(ctx context.Context, base string, head string, spec *gitv1.PullRequestTemplate) (int, error)
+	ClosePullRequest(ctx context.Context, id int) error
 }
 
 func NewConnector(ctx context.Context, crdClient client.Client, k8sClient *kubernetes.Clientset, log logr.Logger, namespace string, url string, secretRef *v1.LocalObjectReference) (Connector, error) {

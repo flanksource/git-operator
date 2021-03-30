@@ -164,7 +164,7 @@ func TestGitopsAPI(ctx context.Context, test *console.TestResults) error {
 	`, getBranchName("test"))
 
 	log.Info("json", "value", body)
-	_, _, err = controllers.HandleGitopsAPI(ctx, log, git, gitv1.GitopsAPI{
+	_, pr, err := controllers.HandleGitopsAPI(ctx, log, git, gitv1.GitopsAPI{
 		Spec: gitv1.GitopsAPISpec{
 			GitRepository: repository,
 			Branch:        "{{.metadata.name}}",
@@ -174,6 +174,12 @@ func TestGitopsAPI(ctx context.Context, test *console.TestResults) error {
 			},
 		},
 	}, bytes.NewReader([]byte(body)))
+
+	if pr != 0 {
+		if err := git.ClosePullRequest(ctx, pr); err != nil {
+			return err
+		}
+	}
 	return err
 }
 

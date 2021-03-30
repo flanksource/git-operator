@@ -101,6 +101,14 @@ func (g *Github) OpenPullRequest(ctx context.Context, base string, head string, 
 	return pr.Number, nil
 }
 
+func (g *Github) ClosePullRequest(ctx context.Context, id int) error {
+	if _, err := g.scm.PullRequests.Close(ctx, g.repository, id); err != nil {
+		return errors.Wrap(err, "failed to close github pull request")
+	}
+
+	return nil
+}
+
 func (g *Github) Clone(ctx context.Context, branch, local string) (billy.Filesystem, *git.Worktree, error) {
 	dir, _ := ioutil.TempDir("", "git-*")
 	url := fmt.Sprintf("https://github.com/%s/%s.git", g.owner, g.repoName)
