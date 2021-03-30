@@ -30,11 +30,19 @@ type GitSSH struct {
 	auth   transport.AuthMethod
 }
 
-func (g *GitSSH) Push(ctx context.Context) error {
-	return nil
+func (g *GitSSH) OpenPullRequest(ctx context.Context, base string, head string, spec *gitv1.PullRequestTemplate) (int, error) {
+	return 0, fmt.Errorf("open pull request  not implemented for git ssh")
 }
 
-func (g *GitSSH) Clone(ctx context.Context, branch string) (billy.Filesystem, *git.Worktree, error) {
+func (g *GitSSH) ClosePullRequest(ctx context.Context, id int) error {
+	return fmt.Errorf("close pull request  not implemented for git ssh")
+}
+
+func (g *GitSSH) Push(ctx context.Context, branch string) error {
+	return fmt.Errorf("push not implemented for git ssh")
+}
+
+func (g *GitSSH) Clone(ctx context.Context, branch, local string) (billy.Filesystem, *git.Worktree, error) {
 	// Filesystem abstraction based on memory
 	fs := memfs.New()
 

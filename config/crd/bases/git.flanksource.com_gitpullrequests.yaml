@@ -36,6 +36,11 @@ spec:
           spec:
             description: GitPullRequestSpec defines the desired state of GitPullRequest
             properties:
+              assignees:
+                description: Update to add or remove reviewers from the pull request
+                items:
+                  type: string
+                type: array
               base:
                 type: string
               body:

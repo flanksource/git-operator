@@ -17,7 +17,6 @@ limitations under the License.
 package controllers
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -30,21 +29,19 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	gitv5 "github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-logr/logr"
 	"github.com/labstack/echo"
 	"github.com/pkg/errors"
-	"gopkg.in/yaml.v2"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/kustomize/api/types"
+	"sigs.k8s.io/yaml"
 
 	"github.com/flanksource/commons/text"
-	"github.com/flanksource/commons/utils"
 	gitv1 "github.com/flanksource/git-operator/api/v1"
 	"github.com/flanksource/git-operator/connectors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -64,8 +61,6 @@ type GitopsAPIReconciler struct {
 func (r *GitopsAPIReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	_ = context.Background()
 	_ = r.Log.WithValues("gitopsapi", req.NamespacedName)
-
-	// your logic here
 
 	return ctrl.Result{}, nil
 }
@@ -103,81 +98,95 @@ func serve(c echo.Context, r *GitopsAPIReconciler) error {
 	if err != nil {
 		return c.String(http.StatusInternalServerError, err.Error())
 	}
-	fs, work, err := git.Clone(ctx, api.Spec.Branch)
+
+	hash, pr, err := HandleGitopsAPI(ctx, r.Log, git, api, c.Request().Body)
+
 	if err != nil {
-		r.Log.Error(err, "error cloning")
+		r.Log.Error(err, "error pushing to git")
 		return c.String(http.StatusInternalServerError, err.Error())
 	}
+	return c.String(http.StatusAccepted, fmt.Sprintf("Committed %s, PR: %d ", hash, pr))
+}
 
-	timestamp := utils.ShortTimestamp()
-	defaultBranch := api.Spec.Branch
-	if defaultBranch == "" {
-		defaultBranch = "master"
+func GetKustomizaton(fs billy.Filesystem, path string) (*types.Kustomization, error) {
+	kustomization := types.Kustomization{}
+
+	if _, err := fs.Stat(path); err != nil {
+		return &kustomization, nil
 	}
-	branchName := fmt.Sprintf("automated-update-%s", timestamp)
+	existing, err := fs.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	existingKustomization, _ := ioutil.ReadAll(existing)
+	if err := yaml.Unmarshal(existingKustomization, &kustomization); err != nil {
+		return nil, err
+	}
+	return &kustomization, nil
+}
 
-	if api.Spec.PullRequest {
-		if err := work.Checkout(&gitv5.CheckoutOptions{Branch: plumbing.NewBranchReferenceName(branchName), Create: true}); err != nil {
-			return err
-		}
+func HandleGitopsAPI(ctx context.Context, logger logr.Logger, git connectors.Connector, api gitv1.GitopsAPI, contents io.Reader) (hash string, pr int, err error) {
+	if api.Spec.Base == "" {
+		api.Spec.Base = "master"
+	}
+	if api.Spec.Branch == "" {
+		api.Spec.Branch = api.Spec.Base
+	}
+	if api.Spec.Kustomization == "" {
+		api.Spec.Kustomization = "kustomization.yaml"
 	}
 
 	obj := unstructured.Unstructured{Object: make(map[string]interface{})}
-	body, _ := ioutil.ReadAll(c.Request().Body)
-	if err := json.Unmarshal(body, &obj.Object); err != nil {
-		r.Log.Error(err, "error unmarshalling")
-		return c.String(http.StatusInternalServerError, err.Error())
+	body, _ := ioutil.ReadAll(contents)
+	if err = json.Unmarshal(body, &obj.Object); err != nil {
+		return hash, pr, errors.WithStack(err)
 	}
-
-	prettyYaml, err := yaml.Marshal(obj.Object)
+	api.Spec.Branch, err = text.Template(api.Spec.Branch, obj.Object)
 	if err != nil {
-		r.Log.Error(err, "error marshalling to yaml, falling back to plaintext")
-	} else {
-		body = prettyYaml
+		return
+	}
+	fs, work, err := git.Clone(ctx, api.Spec.Base, api.Spec.Branch)
+	if err != nil {
+		return
 	}
 
-	r.Log.Info("Received", "name", name, "namespace", namespace, "body", obj.GetName())
+	if api.Spec.Path == "" {
+		api.Spec.Path = fmt.Sprintf("%s-%s-%s.yaml", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+	}
+
+	body, err = yaml.Marshal(obj.Object)
+	if err != nil {
+		return
+	}
+	title := fmt.Sprintf("Add %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+	logger.Info("Received", "name", api.GetName(), "namespace", api.GetNamespace(), "object", title)
 
 	kustomizationPath, err := text.Template(api.Spec.Kustomization, obj.Object)
 	if err != nil {
-		r.Log.Error(err, "error determining kustomization.yaml path")
-		return c.String(http.StatusInternalServerError, err.Error())
+		return
 	}
+
 	contentPath, err := text.Template(api.Spec.Path, obj.Object)
 	if err != nil {
-		r.Log.Error(err, "error determining path")
-		return c.String(http.StatusInternalServerError, err.Error())
+		return
 	}
 
-	r.Log.Info("Saving to", "path", contentPath, "kustomization", kustomizationPath, "name", name, "namespace", namespace)
+	logger.Info("Saving to", "path", contentPath, "kustomization", kustomizationPath, "object", title)
 
-	if err := copy(body, contentPath, fs, work); err != nil {
-		r.Log.Error(err, "error saving content")
-		return c.String(http.StatusInternalServerError, err.Error())
+	if err = copy(body, contentPath, fs, work); err != nil {
+		return
 	}
 
-	existing, err := fs.Open(kustomizationPath)
+	kustomization, err := GetKustomizaton(fs, kustomizationPath)
 	if err != nil {
-		r.Log.Error(err, "error opening kustomization file", "path", kustomizationPath)
-		return c.String(http.StatusInternalServerError, err.Error())
-	}
-	existingKustomization, err := ioutil.ReadAll(existing)
-	if err != nil {
-		r.Log.Error(err, "error reading kustomization file", "path", kustomizationPath)
-		return c.String(http.StatusInternalServerError, err.Error())
-	}
-	kustomization := types.Kustomization{}
-	if err := yaml.Unmarshal(existingKustomization, &kustomization); err != nil {
-		r.Log.Error(err, "error unmarshalling kustomization")
-		return c.String(http.StatusInternalServerError, err.Error())
+		return
 	}
 	relativePath := strings.Replace(contentPath, path.Dir(kustomizationPath)+"/", "", -1)
 	kustomization.Resources = append(kustomization.Resources, relativePath)
-	existingKustomization, _ = yaml.Marshal(kustomization)
+	existingKustomization, _ := yaml.Marshal(kustomization)
 
-	if err := copy(existingKustomization, kustomizationPath, fs, work); err != nil {
-		r.Log.Error(err, "error saving kustomization")
-		return c.String(http.StatusInternalServerError, err.Error())
+	if err = copy(existingKustomization, kustomizationPath, fs, work); err != nil {
+		return
 	}
 	author := &object.Signature{
 		Name:  api.Spec.GitUser,
@@ -188,58 +197,39 @@ func serve(c echo.Context, r *GitopsAPIReconciler) error {
 		author.Name = "Git Operator"
 	}
 	if author.Email == "" {
-		author.Email = "git-operator@noreply.flanksource.com"
+		author.Email = "noreply@git-operator"
 	}
-	hash, err := work.Commit("Automated Update", &gitv5.CommitOptions{
+	_hash, err := work.Commit(title, &gitv5.CommitOptions{
 		Author: author,
 		All:    true,
 	})
 
 	if err != nil {
-		r.Log.Error(err, "error updating fs")
-		return c.String(http.StatusInternalServerError, err.Error())
+		return
 	}
-
-	if err := git.Push(ctx); err != nil {
-		r.Log.Error(err, "error pushing")
-		return c.String(http.StatusInternalServerError, err.Error())
-	}
-
-	if api.Spec.PullRequest {
-		pr := connectors.PullRequest{
-			Title:     fmt.Sprintf("Automated update %s", timestamp),
-			Body:      fmt.Sprintf("Added resource `%s/%s/%s` in `%s`", obj.GetKind(), obj.GetNamespace(), obj.GetName(), contentPath),
-			Head:      branchName,
-			Base:      defaultBranch,
-			Reviewers: api.Spec.Reviewers,
-		}
-		if err := git.CreatePullRequest(ctx, pr); err != nil {
-			r.Log.Error(err, "error creating pull request")
-			return c.String(http.StatusInternalServerError, err.Error())
-		}
-	}
-
-	return c.String(http.StatusAccepted, "Committed "+hash.String())
-}
-
-func copy(data []byte, path string, fs billy.Filesystem, work *gitv5.Worktree) error {
-	dst, err := openOrCreate(path, fs)
+	hash = _hash.String()
+	branch, err := text.Template(api.Spec.Branch, obj.Object)
 	if err != nil {
-		return errors.Wrap(err, "failed to open")
+		return
 	}
-	src := bytes.NewBuffer(data)
-	if _, err := io.Copy(dst, src); err != nil {
-		return errors.Wrap(err, "failed to copy")
-	}
-	if err := dst.Close(); err != nil {
-		return errors.Wrap(err, "failed to close")
-	}
-	_, err = work.Add(path)
-	return errors.Wrap(err, "failed to add to git")
-}
 
-func openOrCreate(path string, fs billy.Filesystem) (billy.File, error) {
-	return fs.Create(path)
+	if err = git.Push(ctx, fmt.Sprintf("%s:%s", branch, api.Spec.Base)); err != nil {
+		return
+	}
+
+	if api.Spec.PullRequest != nil {
+		api.Spec.PullRequest.Body, err = text.Template(api.Spec.PullRequest.Body, obj.Object)
+		if err != nil {
+			return
+		}
+		api.Spec.PullRequest.Title, err = text.Template(api.Spec.PullRequest.Title, obj.Object)
+		if err != nil {
+			return
+		}
+
+		pr, err = git.OpenPullRequest(ctx, api.Spec.Base, branch, api.Spec.PullRequest)
+	}
+	return // nolint: nakedret
 }
 
 func (r *GitopsAPIReconciler) SetupWithManager(mgr ctrl.Manager) error {

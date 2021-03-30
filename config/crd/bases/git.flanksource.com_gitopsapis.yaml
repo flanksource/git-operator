@@ -37,21 +37,14 @@ spec:
             description: GitopsAPISpec defines the desired state of GitopsAPI
             properties:
               branch:
+                description: The branch to push updates back to, defaults to master
                 type: string
-              gitAssignee:
-                items:
-                  type: string
-                type: array
               gitEmail:
                 type: string
               gitRepository:
                 description: The repository URL, can be a HTTP or SSH address.
                 pattern: ^(http|https|ssh)://
                 type: string
-              gitTags:
-                items:
-                  type: string
-                type: array
               gitUser:
                 type: string
               kustomization:
@@ -64,7 +57,25 @@ spec:
                   e.g. `specs/clusters/{{.cluster}}/{{.name}}.yaml`
                 type: string
               pullRequest:
-                type: boolean
+                description: Open a new Pull request from the branch back to the base
+                properties:
+                  assignees:
+                    items:
+                      type: string
+                    type: array
+                  body:
+                    type: string
+                  reviewers:
+                    items:
+                      type: string
+                    type: array
+                  tags:
+                    items:
+                      type: string
+                    type: array
+                  title:
+                    type: string
+                type: object
               reviewers:
                 description: List of github users which should approve the namespace
                   request

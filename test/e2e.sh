@@ -46,6 +46,7 @@ kind load docker-image $IMG --name kind-kind
 make deploy
 
 kubectl create secret generic git-operator-test -n platform-system --from-literal=PROVIDER=github --from-literal=GITHUB_TOKEN=$GITHUB_TOKEN
+kubectl create secret generic github -n platform-system --from-literal=GITHUB_TOKEN=$GITHUB_TOKEN
 kubectl apply -f config/samples/git.flanksource.com_v1_gitrepository.yaml
 
 go run test/e2e.go

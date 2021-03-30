@@ -40,8 +40,6 @@ spec:
                 type: string
               repository:
                 type: string
-            required:
-            - branchName
             type: object
           status:
             description: GitBranchStatus defines the observed state of GitBranch

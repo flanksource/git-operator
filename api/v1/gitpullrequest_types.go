@@ -33,6 +33,8 @@ type GitPullRequestSpec struct {
 
 	// Update to add or remove reviewers from the pull request
 	Reviewers []string `json:"reviewers,omitempty"`
+	// Update to add or remove reviewers from the pull request
+	Assignees []string `json:"assignees,omitempty"`
 }
 
 // GitPullRequestStatus defines the observed state of GitPullRequest
