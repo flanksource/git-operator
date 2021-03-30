@@ -14,7 +14,7 @@ func copy(data []byte, path string, fs billy.Filesystem, work *gitv5.Worktree) e
 	if err != nil {
 		return errors.Wrap(err, "failed to open")
 	}
-	src := bytes.NewBuffer([]byte(data))
+	src := bytes.NewBuffer(data)
 	if _, err := io.Copy(dst, src); err != nil {
 		return errors.Wrap(err, "failed to copy")
 	}

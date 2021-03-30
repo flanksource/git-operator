@@ -30,7 +30,7 @@ type GitopsAPISpec struct {
 	GitUser       string `json:"gitUser,omitempty"`
 	GitEmail      string `json:"gitEmail,omitempty"`
 	// The branch to use as a baseline for the new branch, defaults to master
-	Base string `json:"branch,omitempty"`
+	Base string `json:"base,omitempty"`
 	// The branch to push updates back to, defaults to master
 	Branch string `json:"branch,omitempty"`
 

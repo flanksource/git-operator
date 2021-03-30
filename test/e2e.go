@@ -28,7 +28,6 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
 	crdclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -55,7 +54,6 @@ var (
 	}
 	scheme              = runtime.NewScheme()
 	log                 = ctrl.Log.WithName("e2e")
-	restConfig          *rest.Config
 	pullRequestUsername string
 )
 

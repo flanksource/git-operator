@@ -99,13 +99,13 @@ func serve(c echo.Context, r *GitopsAPIReconciler) error {
 		return c.String(http.StatusInternalServerError, err.Error())
 	}
 
-	if hash, pr, err := HandleGitopsAPI(ctx, r.Log, git, api, c.Request().Body); err != nil {
+	hash, pr, err := HandleGitopsAPI(ctx, r.Log, git, api, c.Request().Body)
+
+	if err != nil {
 		r.Log.Error(err, "error pushing to git")
 		return c.String(http.StatusInternalServerError, err.Error())
-	} else {
-
-		return c.String(http.StatusAccepted, fmt.Sprintf("Committed %s, PR: %d ", hash, pr))
 	}
+	return c.String(http.StatusAccepted, fmt.Sprintf("Committed %s, PR: %d ", hash, pr))
 }
 
 func GetKustomizaton(fs billy.Filesystem, path string) (*types.Kustomization, error) {
@@ -123,8 +123,8 @@ func GetKustomizaton(fs billy.Filesystem, path string) (*types.Kustomization, er
 		return nil, err
 	}
 	return &kustomization, nil
-
 }
+
 func HandleGitopsAPI(ctx context.Context, logger logr.Logger, git connectors.Connector, api gitv1.GitopsAPI, contents io.Reader) (hash string, pr int, err error) {
 	if api.Spec.Base == "" {
 		api.Spec.Base = "master"
@@ -187,7 +187,6 @@ func HandleGitopsAPI(ctx context.Context, logger logr.Logger, git connectors.Con
 
 	if err = copy(existingKustomization, kustomizationPath, fs, work); err != nil {
 		return
-
 	}
 	author := &object.Signature{
 		Name:  api.Spec.GitUser,
@@ -230,7 +229,7 @@ func HandleGitopsAPI(ctx context.Context, logger logr.Logger, git connectors.Con
 
 		pr, err = git.OpenPullRequest(ctx, api.Spec.Base, branch, api.Spec.PullRequest)
 	}
-	return
+	return // nolint: nakedret
 }
 
 func (r *GitopsAPIReconciler) SetupWithManager(mgr ctrl.Manager) error {
