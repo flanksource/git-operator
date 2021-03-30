@@ -413,7 +413,7 @@ func waitForGitBranch(ctx context.Context, crdName string) (*gitv1.GitBranch, er
 		err := crdK8s.Get(ctx, types.NamespacedName{Name: crdName, Namespace: namespace}, gitBranch)
 		if err != nil {
 			if kerrors.IsNotFound(err) {
-				log.Info("GitBranch %s in namespace %s does not exist", crdName, namespace)
+				log.Info("GitBranch in namespace does not exist", "name", crdName, "namespace", namespace)
 				time.Sleep(2 * time.Second)
 				continue
 			}
@@ -429,7 +429,7 @@ func waitForGitPullRequest(ctx context.Context, crdName string) (*gitv1.GitPullR
 		err := crdK8s.Get(ctx, types.NamespacedName{Name: crdName, Namespace: namespace}, gitPR)
 		if err != nil {
 			if kerrors.IsNotFound(err) {
-				log.Info("GitPullRequest %s in namespace %s does not exist", crdName, namespace)
+				log.Info("GitPullRequest in namespace does not exist", "name", crdName, "namespace", namespace)
 				time.Sleep(2 * time.Second)
 				continue
 			}
@@ -455,10 +455,10 @@ func waitForGitPullRequestFromCrd(ctx context.Context, branchName string) (*gith
 			return nil, err
 		}
 		if len(prList) > 0 {
-			log.Info("Found PullRequest #%d with title %s", *prList[0].Number, *prList[0].Title)
+			log.Info("Found PullRequest", "id", *prList[0].Number, "title", *prList[0].Title)
 			return prList[0], nil
 		}
-		log.Info("Github PullRequest for branch %s does not exist", "branch", branchName)
+		log.Info("Github PullRequest for branch does not exist", "branch", branchName)
 		time.Sleep(2 * time.Second)
 	}
 }

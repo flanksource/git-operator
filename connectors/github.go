@@ -21,7 +21,6 @@ import (
 )
 
 type Github struct {
-	*scm.Client
 	k8sCrd client.Client
 	logr.Logger
 	scm        *scm.Client
@@ -41,7 +40,7 @@ func NewGithub(client client.Client, log logr.Logger, owner, repoName, githubTok
 	github := &Github{
 		k8sCrd:     client,
 		Logger:     log.WithName("Github").WithName(owner + "/" + repoName),
-		Client:     scmClient,
+		scm:        scmClient,
 		owner:      owner,
 		repoName:   repoName,
 		repository: owner + "/" + repoName,
@@ -73,7 +72,7 @@ func (g *Github) OpenPullRequest(ctx context.Context, base string, head string, 
 		spec.Title = head
 	}
 	g.V(1).Info("Creating PR", "title", spec.Title, "head", head, "base", base)
-	pr, _, err := g.PullRequests.Create(ctx, g.repository, &scm.PullRequestInput{
+	pr, _, err := g.scm.PullRequests.Create(ctx, g.repository, &scm.PullRequestInput{
 		Title: spec.Title,
 		Body:  spec.Body,
 		Head:  head,
@@ -87,14 +86,14 @@ func (g *Github) OpenPullRequest(ctx context.Context, base string, head string, 
 
 	if len(spec.Reviewers) > 0 {
 		g.Info("Requesting Reviews", "pr", pr.Number, "repository", g.repository, "reviewers", spec.Reviewers)
-		if _, err := g.Client.PullRequests.RequestReview(ctx, g.repository, pr.Number, spec.Reviewers); err != nil {
+		if _, err := g.scm.PullRequests.RequestReview(ctx, g.repository, pr.Number, spec.Reviewers); err != nil {
 			return 0, err
 		}
 	}
 
 	if len(spec.Assignees) > 0 {
 		g.Info("Assigning PR", "pr", pr.Number, "repository", g.repoName, "assignees", spec.Assignees)
-		if _, err := g.Client.PullRequests.AssignIssue(ctx, g.repository, pr.Number, spec.Assignees); err != nil {
+		if _, err := g.scm.PullRequests.AssignIssue(ctx, g.repository, pr.Number, spec.Assignees); err != nil {
 			return 0, err
 		}
 	}
