@@ -1,0 +1,7 @@
+apiVersion: git.flanksource.com/v1
+kind: GitDeployment
+metadata:
+  name: gitdeployment-sample
+spec:
+  # Add fields here
+  ref: add-git-ssh-connector

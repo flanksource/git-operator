@@ -4,7 +4,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.4.0
+    controller-gen.kubebuilder.io/version: v0.3.0
   creationTimestamp: null
   name: gitopsapis.git.flanksource.com
 spec:
@@ -36,6 +36,10 @@ spec:
           spec:
             description: GitopsAPISpec defines the desired state of GitopsAPI
             properties:
+              base:
+                description: The branch to use as a baseline for the new branch, defaults
+                  to master
+                type: string
               branch:
                 description: The branch to push updates back to, defaults to master
                 type: string

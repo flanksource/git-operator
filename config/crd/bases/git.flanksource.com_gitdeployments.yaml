@@ -6,20 +6,20 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.3.0
   creationTimestamp: null
-  name: gitrepositories.git.flanksource.com
+  name: gitdeployments.git.flanksource.com
 spec:
   group: git.flanksource.com
   names:
-    kind: GitRepository
-    listKind: GitRepositoryList
-    plural: gitrepositories
-    singular: gitrepository
+    kind: GitDeployment
+    listKind: GitDeploymentList
+    plural: gitdeployments
+    singular: gitdeployment
   scope: Namespaced
   versions:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: GitRepository is the Schema for the gitrepositories API
+        description: GitDeployment is the Schema for the gitdeployments API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -34,33 +34,39 @@ spec:
           metadata:
             type: object
           spec:
-            description: GitRepositorySpec defines the desired state of GitRepository
+            description: GitDeploymentSpec defines the desired state of GitDeployment
             properties:
-              secretRef:
-                description: The secret name containing the Git credentials. For SSH
-                  repositories the secret must contain SSH_PRIVATE_KEY, SSH_PRIVATE_KEY_PASSORD
-                  For Github repositories it must contain GITHUB_TOKEN
-                properties:
-                  name:
-                    description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                      TODO: Add other useful fields. apiVersion, kind, uid?'
-                    type: string
-                type: object
-              url:
-                description: The repository URL, can be a HTTP or SSH address.
-                pattern: ^(http|https|ssh)://
+              autoMerge:
+                type: boolean
+              description:
                 type: string
-            required:
-            - url
+              environment:
+                type: string
+              id:
+                type: string
+              name:
+                type: string
+              ref:
+                type: string
+              sha:
+                type: string
             type: object
           status:
-            description: GitRepositoryStatus defines the observed state of GitRepository
+            description: GitDeploymentStatus defines the observed state of GitDeployment
             properties:
-              head:
-                description: The Git SHA1 of the main/master branch
+              deploymentLink:
                 type: string
-              lastUpdated:
-                format: date-time
+              environment:
+                type: string
+              id:
+                type: string
+              name:
+                type: string
+              ref:
+                type: string
+              sha:
+                type: string
+              statusLink:
                 type: string
             type: object
         type: object

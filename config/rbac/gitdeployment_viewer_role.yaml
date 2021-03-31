@@ -1,0 +1,20 @@
+# permissions for end users to view gitdeployments.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: gitdeployment-viewer-role
+rules:
+- apiGroups:
+  - git.flanksource.com
+  resources:
+  - gitdeployments
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - git.flanksource.com
+  resources:
+  - gitdeployments/status
+  verbs:
+  - get

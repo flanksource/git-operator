@@ -186,6 +186,56 @@ func (g *Github) ReconcileBranches(ctx context.Context, repository *gitv1.GitRep
 	return nil
 }
 
+func (g *Github) ReconcileDeployments(ctx context.Context, repository *gitv1.GitRepository) error {
+	lastUpdated := repository.Status.LastUpdated.Time
+	log := g.WithValues("gitrepository", fmt.Sprintf("%s/%s", repository.Namespace, repository.Name))
+	log.V(4).Info("lastUpdated: %s\n", lastUpdated.String())
+	githubFetcher := &GithubFetcher{client: g.scm, repository: *repository, owner: g.owner, repoName: g.repoName}
+	ghCrds, err := githubFetcher.BuildDeploymentCRDsFromGithub(ctx, lastUpdated)
+	if err != nil {
+		log.Error(err, "Failed to build GitDeployment CRD from GitHub")
+	}
+	listOptions := &client.MatchingLabels{
+		"git.flanksource.com/repository": repository.Name,
+	}
+	k8sCrds := gitv1.GitDeploymentList{}
+	if err := g.k8sCrd.List(ctx, &k8sCrds, listOptions); err != nil {
+		return err
+	}
+	inK8sByName := map[string]*gitv1.GitDeployment{}
+	for _, k8sCrd := range k8sCrds.Items {
+		inK8sByName[k8sCrd.Spec.Name] = k8sCrd.DeepCopy()
+	}
+	for _, ghCrd := range ghCrds {
+		k8sCrd, found := inK8sByName[ghCrd.Spec.Name]
+		if !found {
+			if err := g.k8sCrd.Create(ctx, &ghCrd); err != nil {
+				log.Error(err, "failed to create GitDeployment CRD", "Deployment", ghCrd.Spec.Name)
+				return err
+			}
+			log.Info("Deployment created", "deployment", ghCrd.Spec.Name)
+		} else if k8sCrd.Spec.Ref != ghCrd.Spec.Ref {
+			log.Info("Creating a new deployment")
+			//Delete the existing deployment on github and create a new one
+			if _, _, err := g.scm.Deployments.Create(ctx, githubFetcher.repositoryName(), getDeploymentInputObject(*k8sCrd)); err != nil {
+				return err
+			}
+
+			if _, err := g.scm.Deployments.Delete(ctx, githubFetcher.repositoryName(), ghCrd.Spec.ID); err != nil {
+				return err
+			}
+			if err := g.k8sCrd.Delete(ctx, &ghCrd); err != nil {
+				return err
+			}
+			log.Info("Deployment updated", "deployment", ghCrd.Spec.Name)
+		} else {
+			log.Info("Deployment did not change", "deployment", ghCrd.Spec.Name)
+		}
+	}
+
+	return nil
+}
+
 func (g *Github) ReconcilePullRequests(ctx context.Context, repository *gitv1.GitRepository) error {
 	lastUpdated := repository.Status.LastUpdated.Time
 	log := g.WithValues("gitrepository", fmt.Sprintf("%s/%s", repository.Namespace, repository.Name))
@@ -249,4 +299,13 @@ func (g *Github) ReconcilePullRequests(ctx context.Context, repository *gitv1.Gi
 	}
 
 	return nil
+}
+
+func getDeploymentInputObject(deployment gitv1.GitDeployment) *scm.DeploymentInput {
+	return &scm.DeploymentInput{
+		Ref:         deployment.Spec.Ref,
+		AutoMerge:   deployment.Spec.AutoMerge,
+		Environment: deployment.Spec.Environment,
+		Description: deployment.Spec.Description,
+	}
 }
