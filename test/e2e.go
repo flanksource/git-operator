@@ -268,7 +268,7 @@ func TestGithubPRSync(ctx context.Context, test *console.TestResults) error {
 		return err
 	}
 
-	gitPRGetCtx, cancelFunc := context.WithTimeout(ctx, 2*time.Minute)
+	gitPRGetCtx, cancelFunc := context.WithTimeout(ctx, 4*time.Minute)
 	defer cancelFunc()
 	crdName := fmt.Sprintf("gitrepository-sample-%d", *pr.Number)
 	gitPR, err := waitForGitPullRequest(gitPRGetCtx, crdName)
