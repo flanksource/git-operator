@@ -1,4 +1,4 @@
-
+##checking CI on master
 # Image URL to use all building/pushing image targets
 IMG ?= flanksource/git-operator:latest
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
