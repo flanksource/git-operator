@@ -268,7 +268,7 @@ func TestGithubPRSync(ctx context.Context, test *console.TestResults) error {
 		return err
 	}
 
-	gitPRGetCtx, cancelFunc := context.WithTimeout(ctx, 5*time.Minute)
+	gitPRGetCtx, cancelFunc := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancelFunc()
 	crdName := fmt.Sprintf("gitrepository-sample-%d", *pr.Number)
 	gitPR, err := waitForGitPullRequest(gitPRGetCtx, crdName)
@@ -293,7 +293,7 @@ func TestGithubPRSync(ctx context.Context, test *console.TestResults) error {
 
 	prStatus := &gitv1.GitPullRequestStatus{
 		Author: pullRequestUsername,
-		URL:    fmt.Sprintf("https://github.com/%s/pull/%d.diff", repository, *pr.Number),
+		URL:    fmt.Sprintf("https://github.com/%s/pull/%d", repository, *pr.Number),
 		ID:     strconv.Itoa(*pr.Number),
 		Ref:    fmt.Sprintf("refs/pull/%d/head", *pr.Number),
 	}
@@ -434,7 +434,7 @@ func waitForGitPullRequest(ctx context.Context, crdName string) (*gitv1.GitPullR
 		if err != nil {
 			if kerrors.IsNotFound(err) {
 				log.Info("GitPullRequest in namespace does not exist", "name", crdName, "namespace", namespace)
-				time.Sleep(10 * time.Second)
+				time.Sleep(2 * time.Second)
 				continue
 			}
 			return nil, errors.Wrapf(err, "failed to get GitPullRequest %s in namespace %s", crdName, namespace)
