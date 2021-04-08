@@ -293,7 +293,7 @@ func TestGithubPRSync(ctx context.Context, test *console.TestResults) error {
 
 	prStatus := &gitv1.GitPullRequestStatus{
 		Author: pullRequestUsername,
-		URL:    fmt.Sprintf("https://github.com/%s/pull/%d.diff", repository, *pr.Number),
+		URL:    fmt.Sprintf("https://github.com/%s/pull/%d", repository, *pr.Number),
 		ID:     strconv.Itoa(*pr.Number),
 		Ref:    fmt.Sprintf("refs/pull/%d/head", *pr.Number),
 	}
