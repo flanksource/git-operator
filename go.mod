@@ -10,9 +10,8 @@ require (
 	github.com/go-logr/logr v0.2.1
 	github.com/go-logr/zapr v0.2.0 // indirect
 	github.com/google/go-github/v32 v32.1.0
-	github.com/jenkins-x/go-scm v1.5.141
+	github.com/jenkins-x/go-scm v1.5.224
 	github.com/labstack/echo v3.3.10+incompatible
-	github.com/nbio/st v0.0.0-20140626010706-e9e8d9816f32 // indirect
 	github.com/onsi/ginkgo v1.14.0
 	github.com/onsi/gomega v1.10.1
 	github.com/pkg/errors v0.9.1
