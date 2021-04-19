@@ -3,6 +3,7 @@ package connectors
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"strconv"
 	"strings"
 	"time"
@@ -157,30 +158,15 @@ func (g *GithubFetcher) BuildDeploymentCRDsFromGithub(ctx context.Context, lastU
 func (g *GithubFetcher) BuildDeploymentCRDFromGithub(ctx context.Context, deployment *scm.Deployment) *gitv1.GitDeployment {
 	crd := &gitv1.GitDeployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      g.deploymentName(g.repository.Name, deployment.Name, deployment.Ref),
+			Name:      g.deploymentName(g.repository.Name),
 			Namespace: g.repository.Namespace,
 			Labels: map[string]string{
 				"git.flanksource.com/repository": g.repository.Name,
 				"git.flanksource.com/deployment": deployment.Name,
 			},
 		},
-		Spec: gitv1.GitDeploymentSpec{
-			Ref:         deployment.Ref,
-			Sha:         deployment.Sha,
-			Name:        deployment.Name,
-			ID:          deployment.ID,
-			Environment: deployment.Environment,
-			Description: deployment.Description,
-		},
-		Status: gitv1.GitDeploymentStatus{
-			Ref:            deployment.Ref,
-			Sha:            deployment.Sha,
-			DeploymentLink: deployment.Link,
-			StatusLink:     deployment.StatusLink,
-			ID:             deployment.ID,
-			Name:           deployment.Name,
-			Environment:    deployment.Environment,
-		},
+		Spec:   getGitDeploymentSpec(deployment),
+		Status: getGitDeploymentStatus(deployment),
 	}
 	return crd
 }
@@ -193,10 +179,33 @@ func (g *GithubFetcher) branchName(repository string, name string) string {
 	return fmt.Sprintf("%s-%s", repository, name)
 }
 
-func (g *GithubFetcher) deploymentName(repository, name, ref string) string {
-	return fmt.Sprintf("%s-%s-%s", repository, name, ref)
+func (g *GithubFetcher) deploymentName(repository string) string {
+	return fmt.Sprintf("%s-%d", repository, rand.Int())
 }
 
 func (g *GithubFetcher) pullRequestName(repository string, number int) string {
 	return fmt.Sprintf("%s-%d", repository, number)
+}
+
+func getGitDeploymentStatus(deployment *scm.Deployment) gitv1.GitDeploymentStatus {
+	return gitv1.GitDeploymentStatus{
+		Ref:            deployment.Ref,
+		Sha:            deployment.Sha,
+		DeploymentLink: deployment.Link,
+		StatusLink:     deployment.StatusLink,
+		ID:             deployment.ID,
+		Name:           deployment.Name,
+		Environment:    deployment.Environment,
+	}
+}
+
+func getGitDeploymentSpec(deployment *scm.Deployment) gitv1.GitDeploymentSpec {
+	return gitv1.GitDeploymentSpec{
+		Ref:         deployment.Ref,
+		Sha:         deployment.Sha,
+		Name:        deployment.Name,
+		ID:          deployment.ID,
+		Environment: deployment.Environment,
+		Description: deployment.Description,
+	}
 }

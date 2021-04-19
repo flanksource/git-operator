@@ -50,7 +50,8 @@ func TestAPIs(t *testing.T) {
 }
 
 var _ = BeforeSuite(func(done Done) {
-	logf.SetLogger(zap.LoggerTo(GinkgoWriter, true))
+	//TODO zap.LoggerTo is deprecated, need to move to Zap.New()
+	logf.SetLogger(zap.LoggerTo(GinkgoWriter, true)) //nolint: staticcheck
 
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
