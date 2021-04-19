@@ -1,0 +1,24 @@
+# permissions for end users to edit gitdeployments.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: gitdeployment-editor-role
+rules:
+- apiGroups:
+  - git.flanksource.com
+  resources:
+  - gitdeployments
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - git.flanksource.com
+  resources:
+  - gitdeployments/status
+  verbs:
+  - get

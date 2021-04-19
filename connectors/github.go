@@ -186,6 +186,99 @@ func (g *Github) ReconcileBranches(ctx context.Context, repository *gitv1.GitRep
 	return nil
 }
 
+func (g *Github) ReconcileDeployments(ctx context.Context, repository *gitv1.GitRepository) error {
+	lastUpdated := repository.Status.LastUpdated.Time
+	log := g.WithValues("gitrepository", fmt.Sprintf("%s/%s", repository.Namespace, repository.Name))
+	log.V(4).Info("lastUpdated: %s\n", lastUpdated.String())
+	githubFetcher := &GithubFetcher{client: g.scm, repository: *repository, owner: g.owner, repoName: g.repoName}
+	ghCrds, err := githubFetcher.BuildDeploymentCRDsFromGithub(ctx, lastUpdated)
+	if err != nil {
+		log.Error(err, "Failed to build GitDeployment CRD from GitHub")
+	}
+	listOptions := &client.MatchingLabels{
+		"git.flanksource.com/repository": repository.Name,
+	}
+	k8sCrds := gitv1.GitDeploymentList{}
+	if err := g.k8sCrd.List(ctx, &k8sCrds, listOptions); err != nil {
+		return err
+	}
+	inK8sByRef := map[string]*gitv1.GitDeployment{}
+	inGhByRef := map[string]*gitv1.GitDeployment{}
+	for _, ghCrd := range ghCrds {
+		inGhByRef[ghCrd.Spec.Ref] = ghCrd.DeepCopy()
+	}
+	for _, k8sCrd := range k8sCrds.Items {
+		inK8sByRef[k8sCrd.Spec.Ref] = k8sCrd.DeepCopy()
+		if k8sCrd.Status.Ref != "" {
+			// Presence of Status.Ref will show that the GH Deployment is present.
+			// Help us to make sure we don't create it again as in case of update request
+			// we won't find this Ref in the Spec.Ref because of that we might create a new CRD will be created since there is GH deployment present
+			// if Spec.Ref != Status.Ref => the Deployment needs to be updated
+			inK8sByRef[k8sCrd.Status.Ref] = k8sCrd.DeepCopy()
+		}
+	}
+	// Create Git Deployment from the CRD
+	for _, k8sCrd := range k8sCrds.Items {
+		// Make sure that the GH deployment not exist while comparing with both Status.Ref and Spec.Ref
+		ghCrd, found := inGhByRef[k8sCrd.Spec.Ref]
+		_, foundInStatus := inGhByRef[k8sCrd.Status.Ref]
+		if !found && !foundInStatus {
+			// Creates new GH deployment based on the Specs received in the k8s object
+			log.Info("Creating new deployment on GH")
+			deployment, _, err := g.scm.Deployments.Create(ctx, githubFetcher.repositoryName(), getDeploymentInputObject(k8sCrd))
+			if err != nil {
+				return err
+			}
+			k8sCrd.Spec = getGitDeploymentSpec(deployment)
+			k8sCrd.Status = getGitDeploymentStatus(deployment)
+			err = g.k8sCrd.Update(ctx, &k8sCrd)
+			if err != nil {
+				return err
+			}
+		} else if k8sCrd.Status.Ref != "" && (k8sCrd.Status.Ref != k8sCrd.Spec.Ref) {
+			// Process the Update request
+			log.Info("Updating deployment")
+			//Delete the existing deployment on github and create a new one
+			deployment, _, err := g.scm.Deployments.Create(ctx, githubFetcher.repositoryName(), getDeploymentInputObject(k8sCrd))
+			if err != nil {
+				return err
+			}
+			log.Info("Deleting Deployment", "ID", k8sCrd.Status.ID)
+			if _, err := g.scm.Deployments.Delete(ctx, githubFetcher.repositoryName(), k8sCrd.Status.ID); err != nil {
+				return err
+			}
+			k8sCrd.Spec = getGitDeploymentSpec(deployment)
+			k8sCrd.Status = getGitDeploymentStatus(deployment)
+			err = g.k8sCrd.Update(ctx, &k8sCrd)
+			if err != nil {
+				return err
+			}
+		} else {
+			// Status.Ref == "" after the spec is found on the GH deployment.
+			// Conclusion the k8sCRD is created with the same spec as present on the GH deployment prior to GH deployment start
+			// In this case we'll update the k8sCRD from the details from GH deployment
+			k8sCrd.Spec = ghCrd.Spec
+			k8sCrd.Status = ghCrd.Status
+			err = g.k8sCrd.Update(ctx, &k8sCrd)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	// Create the k8s CRD for all other deployments present on the GH repository
+	for _, ghCrd := range ghCrds {
+		_, found := inK8sByRef[ghCrd.Spec.Ref]
+		if !found {
+			if err := g.k8sCrd.Create(ctx, &ghCrd); err != nil {
+				return err
+			}
+		}
+	}
+	log.Info("GH deployments and k8s CRDs are in sync")
+
+	return nil
+}
+
 func (g *Github) ReconcilePullRequests(ctx context.Context, repository *gitv1.GitRepository) error {
 	lastUpdated := repository.Status.LastUpdated.Time
 	log := g.WithValues("gitrepository", fmt.Sprintf("%s/%s", repository.Namespace, repository.Name))
@@ -249,4 +342,13 @@ func (g *Github) ReconcilePullRequests(ctx context.Context, repository *gitv1.Gi
 	}
 
 	return nil
+}
+
+func getDeploymentInputObject(deployment gitv1.GitDeployment) *scm.DeploymentInput {
+	return &scm.DeploymentInput{
+		Ref:         deployment.Spec.Ref,
+		AutoMerge:   deployment.Spec.AutoMerge,
+		Environment: deployment.Spec.Environment,
+		Description: deployment.Spec.Description,
+	}
 }

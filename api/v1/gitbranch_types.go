@@ -23,7 +23,7 @@ import (
 // GitBranchSpec defines the desired state of GitBranch
 type GitBranchSpec struct {
 	Repository string `json:"repository,omitempty"`
-	BranchName string `json:"branchName,omitempty"`
+	BranchName string `json:"branchName"`
 }
 
 // GitBranchStatus defines the observed state of GitBranch

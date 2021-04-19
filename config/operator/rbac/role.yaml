@@ -35,6 +35,26 @@ rules:
 - apiGroups:
   - git.flanksource.com
   resources:
+  - gitdeployments
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - git.flanksource.com
+  resources:
+  - gitdeployments/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - git.flanksource.com
+  resources:
   - gitops
   verbs:
   - create

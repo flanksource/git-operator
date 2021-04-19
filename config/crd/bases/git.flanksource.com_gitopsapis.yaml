@@ -36,6 +36,10 @@ spec:
           spec:
             description: GitopsAPISpec defines the desired state of GitopsAPI
             properties:
+              base:
+                description: The branch to use as a baseline for the new branch, defaults
+                  to master
+                type: string
               branch:
                 description: The branch to push updates back to, defaults to master
                 type: string

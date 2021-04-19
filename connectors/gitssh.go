@@ -123,6 +123,10 @@ func (g *GitSSH) ReconcileBranches(ctx context.Context, repository *gitv1.GitRep
 	return nil
 }
 
+func (g *GitSSH) ReconcileDeployments(ctx context.Context, repository *gitv1.GitRepository) error {
+	return nil
+}
+
 func (g *GitSSH) ReconcilePullRequests(ctx context.Context, repository *gitv1.GitRepository) error {
 	return nil
 }

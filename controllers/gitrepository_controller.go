@@ -45,6 +45,9 @@ type GitRepositoryReconciler struct {
 // +kubebuilder:rbac:groups=git.flanksource.com,resources=gitbranches,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=git.flanksource.com,resources=gitbranches/status,verbs=get;update;patch
 
+// +kubebuilder:rbac:groups=git.flanksource.com,resources=gitdeployments,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=git.flanksource.com,resources=gitdeployments/status,verbs=get;update;patch
+
 func (r *GitRepositoryReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
 	log := r.Log.WithValues("gitrepository", req.NamespacedName)
@@ -72,6 +75,9 @@ func (r *GitRepositoryReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 
 	if err := connector.ReconcilePullRequests(ctx, repository); err != nil {
 		log.Error(err, "failed to reconcile branches")
+	}
+	if err := connector.ReconcileDeployments(ctx, repository); err != nil {
+		log.Error(err, "Failed to reconcile deployments")
 	}
 
 	return ctrl.Result{}, nil

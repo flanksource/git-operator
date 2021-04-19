@@ -6,20 +6,20 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.4.0
   creationTimestamp: null
-  name: gitbranches.git.flanksource.com
+  name: gitdeployments.git.flanksource.com
 spec:
   group: git.flanksource.com
   names:
-    kind: GitBranch
-    listKind: GitBranchList
-    plural: gitbranches
-    singular: gitbranch
+    kind: GitDeployment
+    listKind: GitDeploymentList
+    plural: gitdeployments
+    singular: gitdeployment
   scope: Namespaced
   versions:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: GitBranch is the Schema for the gitbranches API
+        description: GitDeployment is the Schema for the gitdeployments API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -34,23 +34,39 @@ spec:
           metadata:
             type: object
           spec:
-            description: GitBranchSpec defines the desired state of GitBranch
+            description: GitDeploymentSpec defines the desired state of GitDeployment
             properties:
-              branchName:
+              autoMerge:
+                type: boolean
+              description:
                 type: string
-              repository:
+              environment:
                 type: string
-            required:
-            - branchName
+              id:
+                type: string
+              name:
+                type: string
+              ref:
+                type: string
+              sha:
+                type: string
             type: object
           status:
-            description: GitBranchStatus defines the observed state of GitBranch
+            description: GitDeploymentStatus defines the observed state of GitDeployment
             properties:
-              head:
-                description: The Git SHA1 of the main/master branch
+              deploymentLink:
                 type: string
-              lastUpdated:
-                format: date-time
+              environment:
+                type: string
+              id:
+                type: string
+              name:
+                type: string
+              ref:
+                type: string
+              sha:
+                type: string
+              statusLink:
                 type: string
             type: object
         type: object

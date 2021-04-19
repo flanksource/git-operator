@@ -1,0 +1,9 @@
+apiVersion: git.flanksource.com/v1
+kind: GitDeployment
+metadata:
+  name: gitdeployment-sample
+  labels:
+    git.flanksource.com/repository: gitrepository-sample
+spec:
+  # Add fields here
+  ref: git-deployment-branch-1

@@ -13,4 +13,7 @@ resources:
 - group: git
   kind: GitopsAPI
   version: v1
+- group: git
+  kind: GitDeployment
+  version: v1
 version: "2"
