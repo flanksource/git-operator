@@ -33,7 +33,7 @@ install: manifests kustomize
 uninstall: manifests kustomize
 	$(KUSTOMIZE) build config/crd | kubectl delete -f -
 
-static: manifests kustomize
+static: manifests kustomize generate
 	mkdir -p config/deploy
 	cd config/operator/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/crd > config/deploy/crd.yml
@@ -101,3 +101,6 @@ KUSTOMIZE=$(GOBIN)/kustomize
 else
 KUSTOMIZE=$(shell which kustomize)
 endif
+
+.PHONY: before-pr
+before-pr: static fmt vet
