@@ -102,5 +102,7 @@ else
 KUSTOMIZE=$(shell which kustomize)
 endif
 
-.PHONY: before-pr
-before-pr: static fmt vet
+
+# Generate all the resources and formats your code, i.e: CRDs, controller-gen, static
+.PHONY: resources
+resources: static fmt vet
