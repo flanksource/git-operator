@@ -1,8 +1,24 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: git-operator-manager
+  name: git-operator
   namespace: platform-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  creationTimestamp: null
+  name: git-operator
+  namespace: platform-system
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -38,26 +54,10 @@ rules:
   - create
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  creationTimestamp: null
-  name: git-operator-manager
-  namespace: platform-system
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - secrets
-  verbs:
-  - get
-  - list
-  - watch
----
-apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   creationTimestamp: null
-  name: git-operator-manager
+  name: git-operator
 rules:
 - apiGroups:
   - '*'
@@ -189,42 +189,42 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: git-operator-leader-election
+  name: git-operator
   namespace: platform-system
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: git-operator-leader-election
+  name: git-operator
 subjects:
 - kind: ServiceAccount
-  name: git-operator-manager
+  name: git-operator
   namespace: platform-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: git-operator-manager
+  name: git-operator-leader-election
   namespace: platform-system
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: git-operator-manager
+  name: git-operator-leader-election
 subjects:
 - kind: ServiceAccount
-  name: git-operator-manager
+  name: git-operator
   namespace: platform-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: git-operator-manager
+  name: git-operator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: git-operator-manager
+  name: git-operator
 subjects:
 - kind: ServiceAccount
-  name: git-operator-manager
+  name: git-operator
   namespace: platform-system
 ---
 apiVersion: apps/v1
@@ -232,7 +232,7 @@ kind: Deployment
 metadata:
   labels:
     control-plane: git-operator
-  name: git-operator-controller-manager
+  name: git-operator
   namespace: platform-system
 spec:
   replicas: 1
@@ -250,10 +250,10 @@ spec:
         - --enable-leader-election
         - --log-level=debug
         command:
-        - /manager
+        - /git-operator
         image: flanksource/git-operator:v1
         imagePullPolicy: IfNotPresent
-        name: manager
+        name: git-operator
         resources:
           limits:
             cpu: 100m
@@ -271,5 +271,5 @@ spec:
         ports:
         - containerPort: 8443
           name: https
-      serviceAccountName: git-operator-manager
+      serviceAccountName: git-operator
       terminationGracePeriodSeconds: 10

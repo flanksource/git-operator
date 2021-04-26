@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: controller-manager
+  name: operator
   namespace: system
   labels:
     control-plane: git-operator
@@ -15,13 +15,13 @@ spec:
       labels:
         control-plane: git-operator
     spec:
-      serviceAccountName: manager
+      serviceAccountName: git-operator
       containers:
-      - name: manager
+      - name: git-operator
         image: controller:latest
         imagePullPolicy: IfNotPresent
         command:
-        - /manager
+        - /git-operator
         args:
         - "--metrics-addr=127.0.0.1:8080"
         - --enable-leader-election

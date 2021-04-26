@@ -47,7 +47,7 @@ deploy: manifests kustomize
 
 # Generate manifests e.g. CRD, RBAC etc.
 manifests: controller-gen
-	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager webhook paths="./..." output:crd:artifacts:config=config/crd/bases output:rbac:artifacts:config=config/operator/rbac
+	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=operator webhook paths="./..." output:crd:artifacts:config=config/crd/bases output:rbac:artifacts:config=config/operator/rbac
 
 # Run go fmt against code
 fmt:
