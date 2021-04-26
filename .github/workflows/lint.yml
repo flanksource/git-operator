@@ -1,11 +1,11 @@
 name: Lint
 on:
   push:
-    tags:
-      - v*
     branches:
       - master
   pull_request:
+    paths:
+      - '**.go'
 jobs:
   golangci:
     name: lint
@@ -17,3 +17,9 @@ jobs:
         uses: golangci/golangci-lint-action@v2
         with:
           version: v1.36
+      - name: Check auto-generated files
+        run: |
+          make resources
+          git diff
+          changed_files=$(git status -s)
+          [[ -z "$changed_files" ]] ||  (printf "Change is detected in some files: \n$changed_files\n Did you run 'make resources' before sending the PR?" && exit 1)

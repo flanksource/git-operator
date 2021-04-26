@@ -33,7 +33,7 @@ install: manifests kustomize
 uninstall: manifests kustomize
 	$(KUSTOMIZE) build config/crd | kubectl delete -f -
 
-static: manifests kustomize
+static: manifests kustomize generate
 	mkdir -p config/deploy
 	cd config/operator/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/crd > config/deploy/crd.yml
@@ -102,3 +102,8 @@ KUSTOMIZE=$(GOBIN)/kustomize
 else
 KUSTOMIZE=$(shell which kustomize)
 endif
+
+
+# Generate all the resources and formats your code, i.e: CRDs, controller-gen, static
+.PHONY: resources
+resources: static fmt vet
