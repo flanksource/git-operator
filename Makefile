@@ -37,6 +37,7 @@ static: manifests kustomize
 	mkdir -p config/deploy
 	cd config/operator/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/crd > config/deploy/crd.yml
+	$(KUSTOMIZE) build config/operator/base > config/deploy/base.yml
 	$(KUSTOMIZE) build config/operator/default > config/deploy/operator.yml
 
 # Deploy controller in the configured Kubernetes cluster in ~/.kube/config
