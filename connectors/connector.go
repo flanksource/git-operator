@@ -48,6 +48,23 @@ func NewConnector(ctx context.Context, crdClient client.Client, k8sClient *kuber
 			return nil, ErrGithubTokenNotFoundInSecret
 		}
 		return NewGithub(crdClient, log, owner, repoName, string(githubToken))
+	} else if strings.Contains(url, "dev.azure.com/") {
+		parts := strings.Split(url, "dev.azure.com/")
+		if len(parts) != 2 {
+			return nil, errors.Errorf("invalid repository url: %s", url)
+		}
+		repoInfos := strings.Split(parts[1], "/")
+		if len(repoInfos) != 4 {
+			return nil, errors.Errorf("invalid reposiroty url: %s. Expected format: https://org@dev.azure.com/org/project/_git/repo", url)
+		}
+		organizationName := repoInfos[0]
+		projectName := repoInfos[1]
+		repoName := repoInfos[3]
+		azureDevopsToken, found := secret.Data["AZURE_DEVOPS_TOKEN"]
+		if !found {
+			return nil, ErrAzureDevopsTokenNotFoundInSecret
+		}
+		return NewAzureDevops(crdClient, log, organizationName, projectName, repoName, string(azureDevopsToken))
 	} else if strings.HasPrefix(url, "ssh://") {
 		sshURL := url[6:]
 		user := strings.Split(sshURL, "@")[0]

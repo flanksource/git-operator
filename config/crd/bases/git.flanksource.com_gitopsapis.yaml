@@ -88,8 +88,9 @@ spec:
                 type: array
               secretRef:
                 description: The secret name containing the Git credentials. For SSH
-                  repositories the secret must contain SSH_PRIVATE_KEY, SSH_PRIVATE_KEY_PASSORD
-                  For Github repositories it must contain GITHUB_TOKEN
+                  repositories the secret must contain SSH_PRIVATE_KEY, SSH_PRIVATE_KEY_PASSORD.
+                  For Github repositories it must contain GITHUB_TOKEN. For Azure
+                  DevOps repositories it must contain AZURE_DEVOPS_TOKEN.
                 properties:
                   name:
                     description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names

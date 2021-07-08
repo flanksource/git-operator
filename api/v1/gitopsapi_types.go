@@ -38,8 +38,9 @@ type GitopsAPISpec struct {
 	PullRequest *PullRequestTemplate `json:"pullRequest,omitempty"`
 
 	// The secret name containing the Git credentials.
-	// For SSH repositories the secret must contain SSH_PRIVATE_KEY, SSH_PRIVATE_KEY_PASSORD
-	// For Github repositories it must contain GITHUB_TOKEN
+	// For SSH repositories the secret must contain SSH_PRIVATE_KEY, SSH_PRIVATE_KEY_PASSORD.
+	// For Github repositories it must contain GITHUB_TOKEN.
+	// For Azure DevOps repositories it must contain AZURE_DEVOPS_TOKEN.
 	// +optional
 	SecretRef *corev1.LocalObjectReference `json:"secretRef,omitempty"`
 

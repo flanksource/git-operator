@@ -15,6 +15,8 @@ var (
 	ErrProviderNotFoundInSecret = errors.New("PROVIDER field not found in credentials secret")
 	// ErrGithubTokenNotFoundInSecret is returned if GITHUB_TOKEN field is not present in credentials secret
 	ErrGithubTokenNotFoundInSecret = errors.New("GITHUB_TOKEN field not found in credentials secret")
+	// ErrAzureDevopsTokenNotFoundInSecret is returned if AZURE_DEVOPS_TOKEN field is not present in credentials secret
+	ErrAzureDevopsTokenNotFoundInSecret = errors.New("AZURE_DEVOPS_TOKEN field not found in credentials secret")
 	// ErrProviderNotSupported is returned when PROVIDER field in credentials secret does not match any known provider
 	ErrProviderNotSupported = errors.New("PROVIDER not supported, valid providers are: github")
 	// ErrSSHUserNotFoundInSecret is returned when SSH_USER is not present in credentials secret

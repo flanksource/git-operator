@@ -1,0 +1,64 @@
+apiVersion: git.flanksource.com/v1
+kind: GitopsAPI
+metadata:
+  name: azure-devops-test
+  namespace: platform-system
+spec:
+  gitRepository: https://LongNDev@dev.azure.com/LongNDev/test-git-operator/_git/test-git-operator
+  path: "{{.metadata.name}}.yaml"
+  branch: "{{.metadata.name}}.yaml"
+  kustomization: kustomization.yaml
+  pullRequest:
+    tags: ["git-operator"]
+  secretRef:
+    name: azure-devops-token
+  tokenRef:
+    name: azure-test-gitops-api-token
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: git-operator-ing
+  namespace: platform-system
+  annotations:
+    kubernetes.io/tls-acme: "true"
+spec:
+  tls:
+    - secretName: git-operator-tls
+      hosts:
+        - git-operator.127.0.0.1.nip.io
+  rules:
+    - host: git-operator.127.0.0.1.nip.io
+      http:
+        paths:
+          - backend:
+              serviceName: git-operator
+              servicePort: 8888
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: platform-system
+  labels:
+    control-plane: git-operator
+  name: git-operator
+spec:
+  selector:
+    control-plane: git-operator
+  ports:
+    - port: 8888
+      targetPort: 8888
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: azure-test-gitops-api-token
+  namespace: platform-system
+stringData:
+  TOKEN: "abcdefgh12345"
+---
+# kubectl create secret generic azure-devops-token -n platform-system --from-literal=AZURE_DEVOPS_TOKEN=$AZURE_DEVOPS_TOKEN
+
+# Example api call:
+
+# curl -XPOST -k -v --data "{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"config1\",\"namespace\":\"platform-system\"},\"data\":{\"foo\":\"bar\"}}" -H "Content-Type: application/json" "http://127.0.0.1:8888/platform-system/azure-devops-test?token=abcdefgh12345"
