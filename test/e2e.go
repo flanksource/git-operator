@@ -46,11 +46,12 @@ var (
 	k8s    *kubernetes.Clientset
 	crdK8s crdclient.Client
 	tests  = map[string]Test{
-		"git-operator-is-running": TestGitOperatorIsRunning,
-		"github-branch-sync":      TestGithubBranchSync,
-		"github-pr-github-sync":   TestGithubPRSync,
-		"github-pr-crd-sync":      TestGithubPRCRDSync,
-		"github-gitops-api":       TestGitopsAPI,
+		"git-operator-is-running":       TestGitOperatorIsRunning,
+		"github-branch-sync":            TestGithubBranchSync,
+		"github-pr-github-sync":         TestGithubPRSync,
+		"github-pr-crd-sync":            TestGithubPRCRDSync,
+		"github-gitops-api":             TestGitopsAPI,
+		"github-gitops-api-search-path": TestGitopsAPISearchPath,
 	}
 	scheme              = runtime.NewScheme()
 	log                 = ctrl.Log.WithName("e2e")
@@ -166,6 +167,50 @@ func TestGitopsAPI(ctx context.Context, test *console.TestResults) error {
 		Spec: gitv1.GitopsAPISpec{
 			GitRepository: repository,
 			Branch:        "{{.metadata.name}}",
+			PullRequest: &gitv1.PullRequestTemplate{
+				Title: "New Automated PR - {{.metadata.name}}",
+				Body:  "Somebody created a new PR {{.metadata.name}}",
+			},
+		},
+	}, bytes.NewReader([]byte(body)))
+
+	if pr != 0 {
+		if err := git.ClosePullRequest(ctx, pr); err != nil {
+			return err
+		}
+	}
+	return err
+}
+
+func TestGitopsAPISearchPath(ctx context.Context, test *console.TestResults) error {
+	git, err := connectors.NewConnector(ctx, crdK8s, k8s, log, "platform-system", "https://github.com/"+repository, &v1.LocalObjectReference{
+		Name: "github",
+	})
+	if err != nil {
+		return err
+	}
+	branchName := getBranchName("test")
+	body := `
+	{
+		"apiVersion": "v1",
+    	"data": {
+        	"some-key": "some-value",
+			"new-key": "new-value"
+    	},
+		"kind": "ConfigMap",
+    	"metadata": {
+        	"name": "tarun-test",
+        	"namespace": "default"
+		}
+	}
+	`
+
+	log.Info("json", "value", body)
+	_, pr, err := controllers.HandleGitopsAPI(ctx, log, git, gitv1.GitopsAPI{
+		Spec: gitv1.GitopsAPISpec{
+			GitRepository: repository,
+			Branch:        branchName,
+			SearchPath:    "resources/",
 			PullRequest: &gitv1.PullRequestTemplate{
 				Title: "New Automated PR - {{.metadata.name}}",
 				Body:  "Somebody created a new PR {{.metadata.name}}",

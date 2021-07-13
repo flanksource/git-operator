@@ -59,7 +59,6 @@ func (g *Github) Push(ctx context.Context, branch string) error {
 	if err := g.repo.Push(&git.PushOptions{
 		Auth:     g.auth,
 		Progress: os.Stdout,
-		Force:    true,
 	}); err != nil {
 		return err
 	}
