@@ -337,6 +337,11 @@ spec:
                 items:
                   type: string
                 type: array
+              searchPath:
+                description: SearchPath defines the subdir in which the matching object
+                  needs to be searched. In case Path and SearchPath both are defined
+                  SearchPath takes precedence
+                type: string
               secretRef:
                 description: The secret name containing the Git credentials. For SSH
                   repositories the secret must contain SSH_PRIVATE_KEY, SSH_PRIVATE_KEY_PASSORD

@@ -23,7 +23,9 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -141,6 +143,8 @@ func HandleGitopsAPI(ctx context.Context, logger logr.Logger, git connectors.Con
 	if err = json.Unmarshal(body, &obj.Object); err != nil {
 		return hash, pr, errors.WithStack(err)
 	}
+	objKey := fmt.Sprintf("%s-%s-%s", obj.GetName(), obj.GetNamespace(), obj.GetKind())
+	contentPath := fmt.Sprintf("%s-%s-%s.yaml", obj.GetKind(), obj.GetNamespace(), obj.GetName())
 	api.Spec.Branch, err = text.Template(api.Spec.Branch, obj.Object)
 	if err != nil {
 		return
@@ -149,11 +153,45 @@ func HandleGitopsAPI(ctx context.Context, logger logr.Logger, git connectors.Con
 	if err != nil {
 		return
 	}
-
-	if api.Spec.Path == "" {
-		api.Spec.Path = fmt.Sprintf("%s-%s-%s.yaml", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+	if api.Spec.SearchPath != "" {
+		repoRoot := fs.Root()
+		if strings.HasSuffix(repoRoot, "/") {
+			api.Spec.SearchPath = repoRoot + api.Spec.SearchPath
+		} else {
+			api.Spec.SearchPath = repoRoot + "/" + api.Spec.SearchPath
+		}
+		if err := filepath.Walk(api.Spec.SearchPath, func(filePath string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.Name() == "kustomization.yaml" || info.IsDir() {
+				return nil
+			}
+			resource := unstructured.Unstructured{Object: make(map[string]interface{})}
+			buf, err := ioutil.ReadFile(filePath)
+			if err != nil {
+				return err
+			}
+			if err := yaml.Unmarshal(buf, &resource); err != nil {
+				return err
+			}
+			resourceKey := fmt.Sprintf("%s-%s-%s", resource.GetName(), resource.GetNamespace(), resource.GetKind())
+			if objKey == resourceKey {
+				contentPath, err = filepath.Rel(repoRoot, filePath)
+				if err != nil {
+					return err
+				}
+				return nil
+			}
+			return nil
+		}); err != nil {
+			fmt.Printf("error occurred while walking %v", err)
+		}
+	} else {
+		if api.Spec.Path != "" {
+			contentPath = api.Spec.Path
+		}
 	}
-
 	body, err = yaml.Marshal(obj.Object)
 	if err != nil {
 		return
@@ -165,14 +203,12 @@ func HandleGitopsAPI(ctx context.Context, logger logr.Logger, git connectors.Con
 	if err != nil {
 		return
 	}
-
-	contentPath, err := text.Template(api.Spec.Path, obj.Object)
+	contentPath, err = text.Template(contentPath, obj.Object)
 	if err != nil {
 		return
 	}
-
 	logger.Info("Saving to", "path", contentPath, "kustomization", kustomizationPath, "object", title)
-
+	fmt.Println(contentPath)
 	if err = copy(body, contentPath, fs, work); err != nil {
 		return
 	}
