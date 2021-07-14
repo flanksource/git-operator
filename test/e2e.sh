@@ -32,12 +32,7 @@ $KARINA ca generate --name root-ca --cert-path .certs/root-ca.crt --private-key-
 $KARINA ca generate --name ingress-ca --cert-path .certs/ingress-ca.crt --private-key-path .certs/ingress-ca.key --password foobar  --expiry 1
 
 $KARINA provision kind-cluster
-kubectl apply -f https://raw.githubusercontent.com/flanksource/karina/v0.50.1/manifests/crd/calico.yaml
-$KARINA deploy calico
-kubectl -n kube-system set env daemonset/calico-node FELIX_IGNORELOOSERPF=true
-
-$KARINA deploy base
-$KARINA deploy stubs
+$KARINA deploy phases --bootstrap --stubs
 
 export IMG=flanksource/git-operator:v1
 make docker-build
