@@ -185,7 +185,7 @@ func HandleGitopsAPI(ctx context.Context, logger logr.Logger, git connectors.Con
 			}
 			return nil
 		}); err != nil {
-			fmt.Printf("error occurred while walking %v", err)
+			return hash, pr, errors.WithStack(err)
 		}
 	} else {
 		if api.Spec.Path != "" {
@@ -208,7 +208,6 @@ func HandleGitopsAPI(ctx context.Context, logger logr.Logger, git connectors.Con
 		return
 	}
 	logger.Info("Saving to", "path", contentPath, "kustomization", kustomizationPath, "object", title)
-	fmt.Println(contentPath)
 	if err = copy(body, contentPath, fs, work); err != nil {
 		return
 	}

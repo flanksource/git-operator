@@ -86,7 +86,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	timeout = flag.Duration("timeout", 10*time.Minute, "Global timeout for all tests")
+	timeout = flag.Duration("timeout", 15*time.Minute, "Global timeout for all tests")
 	flag.Parse()
 
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
@@ -251,7 +251,7 @@ func TestGithubBranchSync(ctx context.Context, test *console.TestResults) error 
 	}
 	test.Passf("TestGithubBranchSync", "Successfully created branch %s", branchName)
 
-	gitBranchGetCtx, cancelFunc := context.WithTimeout(ctx, 2*time.Minute)
+	gitBranchGetCtx, cancelFunc := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancelFunc()
 	crdName := fmt.Sprintf("gitrepository-sample-%s", branchName)
 	gitBranch, err := waitForGitBranch(gitBranchGetCtx, crdName)
@@ -313,7 +313,7 @@ func TestGithubPRSync(ctx context.Context, test *console.TestResults) error {
 		return err
 	}
 
-	gitPRGetCtx, cancelFunc := context.WithTimeout(ctx, 2*time.Minute)
+	gitPRGetCtx, cancelFunc := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancelFunc()
 	crdName := fmt.Sprintf("gitrepository-sample-%d", *pr.Number)
 	gitPR, err := waitForGitPullRequest(gitPRGetCtx, crdName)
@@ -408,7 +408,7 @@ func TestGithubPRCRDSync(ctx context.Context, test *console.TestResults) error {
 		return err
 	}
 
-	gitPRGetCtx, cancelFunc := context.WithTimeout(ctx, 2*time.Minute)
+	gitPRGetCtx, cancelFunc := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancelFunc()
 	gitPR, err := waitForGitPullRequestFromCrd(gitPRGetCtx, branchName)
 	if err != nil {

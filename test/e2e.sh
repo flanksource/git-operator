@@ -2,7 +2,7 @@
 
 set -e
 
-export KARINA_VERSION=v0.16.2
+export KARINA_VERSION=v0.50.1
 export KARINA="./karina -c test/config.yaml"
 export KUBECONFIG=~/.kube/config
 export DOCKER_API_VERSION=1.39
@@ -30,14 +30,14 @@ export PATH=$(pwd)/.bin:$PATH
 
 $KARINA ca generate --name root-ca --cert-path .certs/root-ca.crt --private-key-path .certs/root-ca.key --password foobar  --expiry 1
 $KARINA ca generate --name ingress-ca --cert-path .certs/ingress-ca.crt --private-key-path .certs/ingress-ca.key --password foobar  --expiry 1
-$KARINA provision kind-cluster
 
+$KARINA provision kind-cluster
+kubectl apply -f https://raw.githubusercontent.com/flanksource/karina/v0.50.1/manifests/crd/calico.yaml
 $KARINA deploy calico
 kubectl -n kube-system set env daemonset/calico-node FELIX_IGNORELOOSERPF=true
 
 $KARINA deploy base
 $KARINA deploy stubs
-kubectl create namespace platform-system
 
 export IMG=flanksource/git-operator:v1
 make docker-build
