@@ -46,11 +46,12 @@ var (
 	k8s    *kubernetes.Clientset
 	crdK8s crdclient.Client
 	tests  = map[string]Test{
-		"git-operator-is-running": TestGitOperatorIsRunning,
-		"github-branch-sync":      TestGithubBranchSync,
-		"github-pr-github-sync":   TestGithubPRSync,
-		"github-pr-crd-sync":      TestGithubPRCRDSync,
-		"github-gitops-api":       TestGitopsAPI,
+		"git-operator-is-running":       TestGitOperatorIsRunning,
+		"github-branch-sync":            TestGithubBranchSync,
+		"github-pr-github-sync":         TestGithubPRSync,
+		"github-pr-crd-sync":            TestGithubPRCRDSync,
+		"github-gitops-api":             TestGitopsAPI,
+		"github-gitops-api-search-path": TestGitopsAPISearchPath,
 	}
 	scheme              = runtime.NewScheme()
 	log                 = ctrl.Log.WithName("e2e")
@@ -85,7 +86,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	timeout = flag.Duration("timeout", 10*time.Minute, "Global timeout for all tests")
+	timeout = flag.Duration("timeout", 15*time.Minute, "Global timeout for all tests")
 	flag.Parse()
 
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
@@ -181,6 +182,50 @@ func TestGitopsAPI(ctx context.Context, test *console.TestResults) error {
 	return err
 }
 
+func TestGitopsAPISearchPath(ctx context.Context, test *console.TestResults) error {
+	git, err := connectors.NewConnector(ctx, crdK8s, k8s, log, "platform-system", "https://github.com/"+repository, &v1.LocalObjectReference{
+		Name: "github",
+	})
+	if err != nil {
+		return err
+	}
+	branchName := getBranchName("test")
+	body := `
+	{
+		"apiVersion": "v1",
+    	"data": {
+        	"some-key": "some-value",
+			"new-key": "new-value"
+    	},
+		"kind": "ConfigMap",
+    	"metadata": {
+        	"name": "test-configmap",
+        	"namespace": "default"
+		}
+	}
+	`
+
+	log.Info("json", "value", body)
+	_, pr, err := controllers.HandleGitopsAPI(ctx, log, git, gitv1.GitopsAPI{
+		Spec: gitv1.GitopsAPISpec{
+			GitRepository: repository,
+			Branch:        branchName,
+			SearchPath:    "resources/",
+			PullRequest: &gitv1.PullRequestTemplate{
+				Title: "New Automated PR - {{.metadata.name}}",
+				Body:  "Somebody created a new PR {{.metadata.name}}",
+			},
+		},
+	}, bytes.NewReader([]byte(body)))
+
+	if pr != 0 {
+		if err := git.ClosePullRequest(ctx, pr); err != nil {
+			return err
+		}
+	}
+	return err
+}
+
 func TestGitOperatorIsRunning(ctx context.Context, test *console.TestResults) error {
 	pods, err := k8s.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{LabelSelector: "control-plane=git-operator"})
 	if err != nil {
@@ -206,7 +251,7 @@ func TestGithubBranchSync(ctx context.Context, test *console.TestResults) error 
 	}
 	test.Passf("TestGithubBranchSync", "Successfully created branch %s", branchName)
 
-	gitBranchGetCtx, cancelFunc := context.WithTimeout(ctx, 2*time.Minute)
+	gitBranchGetCtx, cancelFunc := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancelFunc()
 	crdName := fmt.Sprintf("gitrepository-sample-%s", branchName)
 	gitBranch, err := waitForGitBranch(gitBranchGetCtx, crdName)
@@ -268,7 +313,7 @@ func TestGithubPRSync(ctx context.Context, test *console.TestResults) error {
 		return err
 	}
 
-	gitPRGetCtx, cancelFunc := context.WithTimeout(ctx, 2*time.Minute)
+	gitPRGetCtx, cancelFunc := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancelFunc()
 	crdName := fmt.Sprintf("gitrepository-sample-%d", *pr.Number)
 	gitPR, err := waitForGitPullRequest(gitPRGetCtx, crdName)
@@ -363,7 +408,7 @@ func TestGithubPRCRDSync(ctx context.Context, test *console.TestResults) error {
 		return err
 	}
 
-	gitPRGetCtx, cancelFunc := context.WithTimeout(ctx, 2*time.Minute)
+	gitPRGetCtx, cancelFunc := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancelFunc()
 	gitPR, err := waitForGitPullRequestFromCrd(gitPRGetCtx, branchName)
 	if err != nil {

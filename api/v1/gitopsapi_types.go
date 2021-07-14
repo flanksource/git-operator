@@ -57,8 +57,9 @@ type GitopsAPISpec struct {
 	Kustomization string `json:"kustomization,omitempty"`
 
 	// The path to save the resource into, should including templating to make it unique per cluster/namespace/kind/name tuple e.g. `specs/clusters/{{.cluster}}/{{.name}}.yaml`
-	// +required
 	Path string `json:"path,omitempty"`
+	// SearchPath defines the subdir in which the matching object needs to be searched. In case Path and SearchPath both are defined SearchPath takes precedence
+	SearchPath string `json:"searchPath,omitempty"`
 }
 
 type PullRequestTemplate struct {
