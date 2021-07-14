@@ -199,7 +199,7 @@ func TestGitopsAPISearchPath(ctx context.Context, test *console.TestResults) err
     	},
 		"kind": "ConfigMap",
     	"metadata": {
-        	"name": "tarun-test",
+        	"name": "test-configmap",
         	"namespace": "default"
 		}
 	}
