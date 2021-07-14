@@ -72,6 +72,11 @@ func serve(c echo.Context, r *GitopsAPIReconciler) error {
 	name := c.Param("name")
 	namespace := c.Param("namespace")
 	token := c.Param("token")
+	var deleteObj bool
+	if strings.HasPrefix(c.Path(), "/_delete") {
+		r.Log.Info("called the delete endpoint will delete the specified objs")
+		deleteObj = true
+	}
 	if token == "" {
 		token = c.QueryParam("token")
 	}
@@ -101,7 +106,7 @@ func serve(c echo.Context, r *GitopsAPIReconciler) error {
 		return c.String(http.StatusInternalServerError, err.Error())
 	}
 
-	hash, pr, err := HandleGitopsAPI(ctx, r.Log, git, api, c.Request().Body)
+	hash, pr, err := HandleGitopsAPI(ctx, r.Log, git, api, c.Request().Body, deleteObj)
 
 	if err != nil {
 		r.Log.Error(err, "error pushing to git")
@@ -127,7 +132,7 @@ func GetKustomizaton(fs billy.Filesystem, path string) (*types.Kustomization, er
 	return &kustomization, nil
 }
 
-func HandleGitopsAPI(ctx context.Context, logger logr.Logger, git connectors.Connector, api gitv1.GitopsAPI, contents io.Reader) (hash string, pr int, err error) {
+func HandleGitopsAPI(ctx context.Context, logger logr.Logger, git connectors.Connector, api gitv1.GitopsAPI, contents io.Reader, deleteObj bool) (hash string, pr int, err error) {
 	if api.Spec.Base == "" {
 		api.Spec.Base = "master"
 	}
@@ -153,8 +158,8 @@ func HandleGitopsAPI(ctx context.Context, logger logr.Logger, git connectors.Con
 	if err != nil {
 		return
 	}
+	repoRoot := fs.Root()
 	if api.Spec.SearchPath != "" {
-		repoRoot := fs.Root()
 		if strings.HasSuffix(repoRoot, "/") {
 			api.Spec.SearchPath = repoRoot + api.Spec.SearchPath
 		} else {
@@ -198,7 +203,7 @@ func HandleGitopsAPI(ctx context.Context, logger logr.Logger, git connectors.Con
 	if err != nil {
 		return
 	}
-	title := fmt.Sprintf("Add %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+	var title string
 	logger.Info("Received", "name", api.GetName(), "namespace", api.GetNamespace(), "object", title)
 
 	kustomizationPath, err := text.Template(api.Spec.Kustomization, obj.Object)
@@ -210,20 +215,40 @@ func HandleGitopsAPI(ctx context.Context, logger logr.Logger, git connectors.Con
 		return
 	}
 	logger.Info("Saving to", "path", contentPath, "kustomization", kustomizationPath, "object", title)
-	if err = copy(body, contentPath, fs, work); err != nil {
-		return
-	}
-
 	kustomization, err := GetKustomizaton(fs, kustomizationPath)
 	if err != nil {
 		return
 	}
 	relativePath := strings.Replace(contentPath, path.Dir(kustomizationPath)+"/", "", -1)
-	kustomization.Resources = append(kustomization.Resources, relativePath)
-	existingKustomization, _ := yaml.Marshal(kustomization)
-
-	if err = copy(existingKustomization, kustomizationPath, fs, work); err != nil {
-		return
+	if deleteObj {
+		title = fmt.Sprintf("Delete %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+		if contentPath == fmt.Sprintf("%s-%s-%s.yaml", obj.GetKind(), obj.GetNamespace(), obj.GetName()) {
+			return "", 0, fmt.Errorf("no file found with the given object to delete")
+		}
+		if err = deleteFile(contentPath, work, repoRoot); err != nil {
+			return
+		}
+		index := findElement(kustomization.Resources, relativePath)
+		if index != -1 {
+			kustomization.Resources = removeElement(kustomization.Resources, index)
+			existingKustomization, _ := yaml.Marshal(kustomization)
+			if err = copy(existingKustomization, kustomizationPath, fs, work); err != nil {
+				return
+			}
+		}
+	} else {
+		title = fmt.Sprintf("Add %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+		if err = copy(body, contentPath, fs, work); err != nil {
+			return
+		}
+		index := findElement(kustomization.Resources, relativePath)
+		if index == -1 {
+			kustomization.Resources = append(kustomization.Resources, relativePath)
+		}
+		existingKustomization, _ := yaml.Marshal(kustomization)
+		if err = copy(existingKustomization, kustomizationPath, fs, work); err != nil {
+			return
+		}
 	}
 	author := &object.Signature{
 		Name:  api.Spec.GitUser,
@@ -287,6 +312,12 @@ func (r *GitopsAPIReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return serve(c, r)
 	})
 	e.POST("/:namespace/:name", func(c echo.Context) error {
+		return serve(c, r)
+	})
+	e.POST("/_delete/:namespace/:name", func(c echo.Context) error {
+		return serve(c, r)
+	})
+	e.POST("/_delete/:namespace/:name/:token", func(c echo.Context) error {
 		return serve(c, r)
 	})
 	go func() {

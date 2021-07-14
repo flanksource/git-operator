@@ -172,7 +172,7 @@ func TestGitopsAPI(ctx context.Context, test *console.TestResults) error {
 				Body:  "Somebody created a new PR {{.metadata.name}}",
 			},
 		},
-	}, bytes.NewReader([]byte(body)))
+	}, bytes.NewReader([]byte(body)), false)
 
 	if pr != 0 {
 		if err := git.ClosePullRequest(ctx, pr); err != nil {
@@ -216,7 +216,7 @@ func TestGitopsAPISearchPath(ctx context.Context, test *console.TestResults) err
 				Body:  "Somebody created a new PR {{.metadata.name}}",
 			},
 		},
-	}, bytes.NewReader([]byte(body)))
+	}, bytes.NewReader([]byte(body)), false)
 
 	if pr != 0 {
 		if err := git.ClosePullRequest(ctx, pr); err != nil {

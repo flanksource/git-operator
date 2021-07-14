@@ -3,6 +3,7 @@ package controllers
 import (
 	"bytes"
 	"io"
+	"os"
 
 	"github.com/go-git/go-billy/v5"
 	gitv5 "github.com/go-git/go-git/v5"
@@ -25,6 +26,32 @@ func copy(data []byte, path string, fs billy.Filesystem, work *gitv5.Worktree) e
 	return errors.Wrap(err, "failed to add to git")
 }
 
+func deleteFile(path string, work *gitv5.Worktree, repoRoot string) error {
+	fullPath := repoRoot + "/" + path
+	err := os.Remove(fullPath)
+	if err != nil {
+		return errors.Wrap(err, "failed to delete file")
+	}
+	_, err = work.Add(path)
+	if err != nil {
+		return errors.Wrap(err, "failed to add to git")
+	}
+	return nil
+}
+
 func openOrCreate(path string, fs billy.Filesystem) (billy.File, error) {
 	return fs.Create(path)
+}
+
+func findElement(list []string, element string) int {
+	for i := range list {
+		if list[i] == element {
+			return i
+		}
+	}
+	return -1
+}
+
+func removeElement(list []string, indext int) []string {
+	return append(list[:indext], list[indext+1:]...)
 }
