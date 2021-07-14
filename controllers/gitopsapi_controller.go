@@ -167,21 +167,23 @@ func HandleGitopsAPI(ctx context.Context, logger logr.Logger, git connectors.Con
 			if info.Name() == "kustomization.yaml" || info.IsDir() {
 				return nil
 			}
-			resource := unstructured.Unstructured{Object: make(map[string]interface{})}
-			buf, err := ioutil.ReadFile(filePath)
-			if err != nil {
-				return err
-			}
-			if err := yaml.Unmarshal(buf, &resource); err != nil {
-				return err
-			}
-			resourceKey := fmt.Sprintf("%s-%s-%s", resource.GetName(), resource.GetNamespace(), resource.GetKind())
-			if objKey == resourceKey {
-				contentPath, err = filepath.Rel(repoRoot, filePath)
+			if path.Ext(filePath) == ".yaml" || path.Ext(filePath) == ".yml" {
+				resource := unstructured.Unstructured{Object: make(map[string]interface{})}
+				buf, err := ioutil.ReadFile(filePath)
 				if err != nil {
 					return err
 				}
-				return nil
+				if err := yaml.Unmarshal(buf, &resource); err != nil {
+					return err
+				}
+				resourceKey := fmt.Sprintf("%s-%s-%s", resource.GetName(), resource.GetNamespace(), resource.GetKind())
+				if objKey == resourceKey {
+					contentPath, err = filepath.Rel(repoRoot, filePath)
+					if err != nil {
+						return err
+					}
+					return nil
+				}
 			}
 			return nil
 		}); err != nil {
