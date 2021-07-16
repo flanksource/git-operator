@@ -138,11 +138,18 @@ func GetKustomizaton(fs billy.Filesystem, path string) (*types.Kustomization, er
 func CreateOrUpdateObject(ctx context.Context, logger logr.Logger, git connectors.Connector, api gitv1.GitopsAPI, contents io.Reader) (hash string, pr int, err error) {
 	api = addDefaults(api)
 	obj := unstructured.Unstructured{Object: make(map[string]interface{})}
-	body, _ := ioutil.ReadAll(contents)
+	body, err := ioutil.ReadAll(contents)
+	if err != nil {
+		return hash, pr, errors.WithStack(err)
+	}
 	if err = json.Unmarshal(body, &obj.Object); err != nil {
 		return hash, pr, errors.WithStack(err)
 	}
-	body, _ = yaml.JSONToYAML(body)
+	body = []byte(TabToSpace(string(body)))
+	body, err = yaml.JSONToYAML(body)
+	if err != nil {
+		return hash, pr, errors.WithStack(err)
+	}
 	api.Spec.Branch, err = text.Template(api.Spec.Branch, obj.Object)
 	if err != nil {
 		return
@@ -202,7 +209,10 @@ func CreateOrUpdateObject(ctx context.Context, logger logr.Logger, git connector
 func DeleteObject(ctx context.Context, logger logr.Logger, git connectors.Connector, api gitv1.GitopsAPI, contents io.Reader) (hash string, pr int, err error) {
 	api = addDefaults(api)
 	obj := unstructured.Unstructured{Object: make(map[string]interface{})}
-	body, _ := ioutil.ReadAll(contents)
+	body, err := ioutil.ReadAll(contents)
+	if err != nil {
+		return hash, pr, errors.WithStack(err)
+	}
 	if err = json.Unmarshal(body, &obj.Object); err != nil {
 		return hash, pr, errors.WithStack(err)
 	}
@@ -245,9 +255,12 @@ func DeleteObject(ctx context.Context, logger logr.Logger, git connectors.Connec
 	index := findElement(kustomization.Resources, relativePath)
 	if index != -1 {
 		kustomization.Resources = removeElement(kustomization.Resources, index)
-		existingKustomization, _ := yaml.Marshal(kustomization)
+		existingKustomization, err := yaml.Marshal(kustomization)
+		if err != nil {
+			return hash, pr, err
+		}
 		if err = copy(existingKustomization, kustomizationPath, fs, work); err != nil {
-			return
+			return hash, pr, err
 		}
 	}
 	hash, err = createCommit(ctx, api, git, work, title)

@@ -46,12 +46,13 @@ var (
 	k8s    *kubernetes.Clientset
 	crdK8s crdclient.Client
 	tests  = map[string]Test{
-		"git-operator-is-running":       TestGitOperatorIsRunning,
-		"github-branch-sync":            TestGithubBranchSync,
-		"github-pr-github-sync":         TestGithubPRSync,
-		"github-pr-crd-sync":            TestGithubPRCRDSync,
-		"github-gitops-api":             TestGitopsAPI,
-		"github-gitops-api-search-path": TestGitopsAPISearchPath,
+		"git-operator-is-running":  TestGitOperatorIsRunning,
+		"github-branch-sync":       TestGithubBranchSync,
+		"github-pr-github-sync":    TestGithubPRSync,
+		"github-pr-crd-sync":       TestGithubPRCRDSync,
+		"github-gitops-api-create": TestGitopsAPICreate,
+		"github-gitops-api-update": TestGitopsAPIUpdate,
+		"github-gitops-api-delete": TestGitopsAPIDelete,
 	}
 	scheme              = runtime.NewScheme()
 	log                 = ctrl.Log.WithName("e2e")
@@ -140,7 +141,7 @@ func main() {
 	log.Info("All tests passed !!!")
 }
 
-func TestGitopsAPI(ctx context.Context, test *console.TestResults) error {
+func TestGitopsAPICreate(ctx context.Context, test *console.TestResults) error {
 	git, err := connectors.NewConnector(ctx, crdK8s, k8s, log, "platform-system", "https://github.com/"+repository, &v1.LocalObjectReference{
 		Name: "github",
 	})
@@ -163,16 +164,16 @@ func TestGitopsAPI(ctx context.Context, test *console.TestResults) error {
 	`, getBranchName("test"))
 
 	log.Info("json", "value", body)
-	_, pr, err := controllers.HandleGitopsAPI(ctx, log, git, gitv1.GitopsAPI{
+	_, pr, err := controllers.CreateOrUpdateObject(ctx, log, git, gitv1.GitopsAPI{
 		Spec: gitv1.GitopsAPISpec{
 			GitRepository: repository,
 			Branch:        "{{.metadata.name}}",
 			PullRequest: &gitv1.PullRequestTemplate{
-				Title: "New Automated PR - {{.metadata.name}}",
+				Title: "Automated PR: Created new object {{.metadata.name}}",
 				Body:  "Somebody created a new PR {{.metadata.name}}",
 			},
 		},
-	}, bytes.NewReader([]byte(body)), false)
+	}, bytes.NewReader([]byte(body)))
 
 	if pr != 0 {
 		if err := git.ClosePullRequest(ctx, pr); err != nil {
@@ -182,7 +183,7 @@ func TestGitopsAPI(ctx context.Context, test *console.TestResults) error {
 	return err
 }
 
-func TestGitopsAPISearchPath(ctx context.Context, test *console.TestResults) error {
+func TestGitopsAPIUpdate(ctx context.Context, test *console.TestResults) error {
 	git, err := connectors.NewConnector(ctx, crdK8s, k8s, log, "platform-system", "https://github.com/"+repository, &v1.LocalObjectReference{
 		Name: "github",
 	})
@@ -206,17 +207,62 @@ func TestGitopsAPISearchPath(ctx context.Context, test *console.TestResults) err
 	`
 
 	log.Info("json", "value", body)
-	_, pr, err := controllers.HandleGitopsAPI(ctx, log, git, gitv1.GitopsAPI{
+	_, pr, err := controllers.CreateOrUpdateObject(ctx, log, git, gitv1.GitopsAPI{
+		Spec: gitv1.GitopsAPISpec{
+			GitRepository: repository,
+			Branch:        branchName,
+			SearchPath:    "resources/",
+			Kustomization: "resources/kustomization.yaml",
+			PullRequest: &gitv1.PullRequestTemplate{
+				Title: "Automated PR: Updated existing object {{.metadata.name}}",
+				Body:  "Somebody created a new PR {{.metadata.name}}",
+			},
+		},
+	}, bytes.NewReader([]byte(body)))
+
+	if pr != 0 {
+		if err := git.ClosePullRequest(ctx, pr); err != nil {
+			return err
+		}
+	}
+	return err
+}
+
+func TestGitopsAPIDelete(ctx context.Context, test *console.TestResults) error {
+	git, err := connectors.NewConnector(ctx, crdK8s, k8s, log, "platform-system", "https://github.com/"+repository, &v1.LocalObjectReference{
+		Name: "github",
+	})
+	if err != nil {
+		return err
+	}
+	branchName := getBranchName("test")
+	body := `
+	{
+        "apiVersion": "v1",
+    	"data": {
+        	"some-key": "some-value",
+			"new-key": "new-value"
+    	},
+		"kind": "ConfigMap",
+    	"metadata": {
+        	"name": "test-configmap",
+        	"namespace": "default"
+		}
+	}
+	`
+
+	log.Info("json", "value", body)
+	_, pr, err := controllers.DeleteObject(ctx, log, git, gitv1.GitopsAPI{
 		Spec: gitv1.GitopsAPISpec{
 			GitRepository: repository,
 			Branch:        branchName,
 			SearchPath:    "resources/",
 			PullRequest: &gitv1.PullRequestTemplate{
-				Title: "New Automated PR - {{.metadata.name}}",
+				Title: "Automated PR: Delete object {{.metadata.name}}",
 				Body:  "Somebody created a new PR {{.metadata.name}}",
 			},
 		},
-	}, bytes.NewReader([]byte(body)), false)
+	}, bytes.NewReader([]byte(body)))
 
 	if pr != 0 {
 		if err := git.ClosePullRequest(ctx, pr); err != nil {
