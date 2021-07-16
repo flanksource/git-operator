@@ -164,7 +164,7 @@ func TestGitopsAPICreate(ctx context.Context, test *console.TestResults) error {
 	`, getBranchName("test"))
 
 	log.Info("json", "value", body)
-	_, pr, err := controllers.CreateOrUpdateObject(ctx, log, git, gitv1.GitopsAPI{
+	api := &gitv1.GitopsAPI{
 		Spec: gitv1.GitopsAPISpec{
 			GitRepository: repository,
 			Branch:        "{{.metadata.name}}",
@@ -173,10 +173,25 @@ func TestGitopsAPICreate(ctx context.Context, test *console.TestResults) error {
 				Body:  "Somebody created a new PR {{.metadata.name}}",
 			},
 		},
-	}, bytes.NewReader([]byte(body)))
+	}
+	work, title, err := controllers.CreateOrUpdateObject(ctx, log, git, api, bytes.NewReader([]byte(body)))
+	if err != nil {
+		return err
+	}
+	_, err = controllers.CreateCommit(api, work, title)
+	if err != nil {
+		return err
+	}
 
+	if err = git.Push(ctx, fmt.Sprintf("%s:%s", api.Spec.Branch, api.Spec.Base)); err != nil {
+		return err
+	}
+	pr, err := git.OpenPullRequest(ctx, api.Spec.Base, api.Spec.Branch, api.Spec.PullRequest)
+	if err != nil {
+		return err
+	}
 	if pr != 0 {
-		if err := git.ClosePullRequest(ctx, pr); err != nil {
+		if err = git.ClosePullRequest(ctx, pr); err != nil {
 			return err
 		}
 	}
@@ -205,9 +220,7 @@ func TestGitopsAPIUpdate(ctx context.Context, test *console.TestResults) error {
 		}
 	}
 	`
-
-	log.Info("json", "value", body)
-	_, pr, err := controllers.CreateOrUpdateObject(ctx, log, git, gitv1.GitopsAPI{
+	api := &gitv1.GitopsAPI{
 		Spec: gitv1.GitopsAPISpec{
 			GitRepository: repository,
 			Branch:        branchName,
@@ -218,8 +231,24 @@ func TestGitopsAPIUpdate(ctx context.Context, test *console.TestResults) error {
 				Body:  "Somebody created a new PR {{.metadata.name}}",
 			},
 		},
-	}, bytes.NewReader([]byte(body)))
+	}
+	log.Info("json", "value", body)
+	work, title, err := controllers.CreateOrUpdateObject(ctx, log, git, api, bytes.NewReader([]byte(body)))
+	if err != nil {
+		return err
+	}
+	_, err = controllers.CreateCommit(api, work, title)
+	if err != nil {
+		return err
+	}
 
+	if err = git.Push(ctx, fmt.Sprintf("%s:%s", api.Spec.Branch, api.Spec.Base)); err != nil {
+		return err
+	}
+	pr, err := git.OpenPullRequest(ctx, api.Spec.Base, api.Spec.Branch, api.Spec.PullRequest)
+	if err != nil {
+		return err
+	}
 	if pr != 0 {
 		if err := git.ClosePullRequest(ctx, pr); err != nil {
 			return err
@@ -250,9 +279,8 @@ func TestGitopsAPIDelete(ctx context.Context, test *console.TestResults) error {
 		}
 	}
 	`
-
 	log.Info("json", "value", body)
-	_, pr, err := controllers.DeleteObject(ctx, log, git, gitv1.GitopsAPI{
+	api := &gitv1.GitopsAPI{
 		Spec: gitv1.GitopsAPISpec{
 			GitRepository: repository,
 			Branch:        branchName,
@@ -262,8 +290,23 @@ func TestGitopsAPIDelete(ctx context.Context, test *console.TestResults) error {
 				Body:  "Somebody created a new PR {{.metadata.name}}",
 			},
 		},
-	}, bytes.NewReader([]byte(body)))
+	}
+	work, title, err := controllers.DeleteObject(ctx, log, git, api, bytes.NewReader([]byte(body)))
+	if err != nil {
+		return err
+	}
+	_, err = controllers.CreateCommit(api, work, title)
+	if err != nil {
+		return err
+	}
 
+	if err = git.Push(ctx, fmt.Sprintf("%s:%s", api.Spec.Branch, api.Spec.Base)); err != nil {
+		return err
+	}
+	pr, err := git.OpenPullRequest(ctx, api.Spec.Base, api.Spec.Branch, api.Spec.PullRequest)
+	if err != nil {
+		return err
+	}
 	if pr != 0 {
 		if err := git.ClosePullRequest(ctx, pr); err != nil {
 			return err

@@ -101,19 +101,32 @@ func serve(c echo.Context, r *GitopsAPIReconciler) error {
 	if err != nil {
 		return c.String(http.StatusInternalServerError, err.Error())
 	}
-	var hash string
+	var work *gitv5.Worktree
+	var title, hash string
 	var pr int
 	if deleteObj {
-		hash, pr, err = DeleteObject(ctx, r.Log, git, api, c.Request().Body)
+		work, title, err = DeleteObject(ctx, r.Log, git, &api, c.Request().Body)
 	} else {
-		hash, pr, err = CreateOrUpdateObject(ctx, r.Log, git, api, c.Request().Body)
+		work, title, err = CreateOrUpdateObject(ctx, r.Log, git, &api, c.Request().Body)
+	}
+	if err != nil {
+		r.Log.Error(err, "error upating files")
+		return c.String(http.StatusInternalServerError, err.Error())
+	}
+	hash, err = CreateCommit(&api, work, title)
+	if err != nil {
+		r.Log.Error(err, "error creating commit")
+		return c.String(http.StatusInternalServerError, err.Error())
+	}
+	if err = git.Push(ctx, fmt.Sprintf("%s:%s", api.Spec.Branch, api.Spec.Base)); err != nil {
+		return c.String(http.StatusInternalServerError, err.Error())
 	}
 
-	//hash, pr, err := HandleGitopsAPI(ctx, r.Log, git, api, c.Request().Body, deleteObj)
-
-	if err != nil {
-		r.Log.Error(err, "error pushing to git")
-		return c.String(http.StatusInternalServerError, err.Error())
+	if api.Spec.PullRequest != nil {
+		pr, err = git.OpenPullRequest(ctx, api.Spec.Base, api.Spec.Branch, api.Spec.PullRequest)
+		if err != nil {
+			return c.String(http.StatusInternalServerError, err.Error())
+		}
 	}
 	return c.String(http.StatusAccepted, fmt.Sprintf("Committed %s, PR: %d ", hash, pr))
 }
@@ -135,20 +148,20 @@ func GetKustomizaton(fs billy.Filesystem, path string) (*types.Kustomization, er
 	return &kustomization, nil
 }
 
-func CreateOrUpdateObject(ctx context.Context, logger logr.Logger, git connectors.Connector, api gitv1.GitopsAPI, contents io.Reader) (hash string, pr int, err error) {
+func CreateOrUpdateObject(ctx context.Context, logger logr.Logger, git connectors.Connector, api *gitv1.GitopsAPI, contents io.Reader) (work *gitv5.Worktree, title string, err error) {
 	api = addDefaults(api)
 	obj := unstructured.Unstructured{Object: make(map[string]interface{})}
 	body, err := ioutil.ReadAll(contents)
 	if err != nil {
-		return hash, pr, errors.WithStack(err)
+		return
 	}
 	if err = json.Unmarshal(body, &obj.Object); err != nil {
-		return hash, pr, errors.WithStack(err)
+		return
 	}
 	body = []byte(TabToSpace(string(body)))
 	body, err = yaml.JSONToYAML(body)
 	if err != nil {
-		return hash, pr, errors.WithStack(err)
+		return
 	}
 	api.Spec.Branch, err = text.Template(api.Spec.Branch, obj.Object)
 	if err != nil {
@@ -165,7 +178,7 @@ func CreateOrUpdateObject(ctx context.Context, logger logr.Logger, git connector
 	if contentPath == "" {
 		contentPath = fmt.Sprintf("%s-%s-%s.yaml", obj.GetKind(), obj.GetNamespace(), obj.GetName())
 	}
-	title := fmt.Sprintf("Add/Update %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+	title = fmt.Sprintf("Add/Update %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
 	logger.Info("Received", "name", api.GetName(), "namespace", api.GetNamespace(), "object", title)
 
 	kustomizationPath, err := text.Template(api.Spec.Kustomization, obj.Object)
@@ -193,28 +206,27 @@ func CreateOrUpdateObject(ctx context.Context, logger logr.Logger, git connector
 	if err = copy(existingKustomization, kustomizationPath, fs, work); err != nil {
 		return
 	}
-	hash, err = createCommit(ctx, api, git, work, title)
+	api.Spec.PullRequest.Body, err = text.Template(api.Spec.PullRequest.Body, obj.Object)
 	if err != nil {
 		return
 	}
-	if api.Spec.PullRequest != nil {
-		pr, err = createPullRequest(ctx, api, obj, git)
-		if err != nil {
-			return
-		}
+	api.Spec.PullRequest.Title, err = text.Template(api.Spec.PullRequest.Title, obj.Object)
+	if err != nil {
+		return
 	}
-	return hash, pr, nil
+
+	return work, title, nil
 }
 
-func DeleteObject(ctx context.Context, logger logr.Logger, git connectors.Connector, api gitv1.GitopsAPI, contents io.Reader) (hash string, pr int, err error) {
+func DeleteObject(ctx context.Context, logger logr.Logger, git connectors.Connector, api *gitv1.GitopsAPI, contents io.Reader) (work *gitv5.Worktree, title string, err error) {
 	api = addDefaults(api)
 	obj := unstructured.Unstructured{Object: make(map[string]interface{})}
 	body, err := ioutil.ReadAll(contents)
 	if err != nil {
-		return hash, pr, errors.WithStack(err)
+		return
 	}
 	if err = json.Unmarshal(body, &obj.Object); err != nil {
-		return hash, pr, errors.WithStack(err)
+		return
 	}
 	api.Spec.Branch, err = text.Template(api.Spec.Branch, obj.Object)
 	if err != nil {
@@ -229,9 +241,9 @@ func DeleteObject(ctx context.Context, logger logr.Logger, git connectors.Connec
 		return
 	}
 	if contentPath == "" {
-		return hash, pr, fmt.Errorf("could not find the object to delete")
+		return nil, "", fmt.Errorf("could not find the object to delete")
 	}
-	title := fmt.Sprintf("Delete %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+	title = fmt.Sprintf("Delete %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
 	logger.Info("Received", "name", api.GetName(), "namespace", api.GetNamespace(), "object", title)
 
 	kustomizationPath, err := text.Template(api.Spec.Kustomization, obj.Object)
@@ -257,23 +269,21 @@ func DeleteObject(ctx context.Context, logger logr.Logger, git connectors.Connec
 		kustomization.Resources = removeElement(kustomization.Resources, index)
 		existingKustomization, err := yaml.Marshal(kustomization)
 		if err != nil {
-			return hash, pr, err
+			return nil, "", err
 		}
 		if err = copy(existingKustomization, kustomizationPath, fs, work); err != nil {
-			return hash, pr, err
+			return nil, "", err
 		}
 	}
-	hash, err = createCommit(ctx, api, git, work, title)
+	api.Spec.PullRequest.Body, err = text.Template(api.Spec.PullRequest.Body, obj.Object)
 	if err != nil {
 		return
 	}
-	if api.Spec.PullRequest != nil {
-		pr, err = createPullRequest(ctx, api, obj, git)
-		if err != nil {
-			return
-		}
+	api.Spec.PullRequest.Title, err = text.Template(api.Spec.PullRequest.Title, obj.Object)
+	if err != nil {
+		return
 	}
-	return hash, pr, nil
+	return work, title, nil
 }
 
 func (r *GitopsAPIReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -309,7 +319,7 @@ func (r *GitopsAPIReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return nil
 }
 
-func addDefaults(api gitv1.GitopsAPI) gitv1.GitopsAPI {
+func addDefaults(api *gitv1.GitopsAPI) *gitv1.GitopsAPI {
 	if api.Spec.Base == "" {
 		api.Spec.Base = "master"
 	}
@@ -322,7 +332,7 @@ func addDefaults(api gitv1.GitopsAPI) gitv1.GitopsAPI {
 	return api
 }
 
-func getContentPath(api gitv1.GitopsAPI, repoRoot string, obj unstructured.Unstructured) (contentPath string, err error) {
+func getContentPath(api *gitv1.GitopsAPI, repoRoot string, obj unstructured.Unstructured) (contentPath string, err error) {
 	if api.Spec.SearchPath != "" {
 		objKey := getObjectKey(obj)
 		if strings.HasSuffix(repoRoot, "/") {
@@ -367,7 +377,7 @@ func getContentPath(api gitv1.GitopsAPI, repoRoot string, obj unstructured.Unstr
 	return contentPath, nil
 }
 
-func createCommit(ctx context.Context, api gitv1.GitopsAPI, git connectors.Connector, work *gitv5.Worktree, title string) (hash string, err error) {
+func CreateCommit(api *gitv1.GitopsAPI, work *gitv5.Worktree, title string) (hash string, err error) {
 	author := &object.Signature{
 		Name:  api.Spec.GitUser,
 		Email: api.Spec.GitEmail,
@@ -388,23 +398,6 @@ func createCommit(ctx context.Context, api gitv1.GitopsAPI, git connectors.Conne
 		return
 	}
 	hash = _hash.String()
-
-	if err = git.Push(ctx, fmt.Sprintf("%s:%s", api.Spec.Branch, api.Spec.Base)); err != nil {
-		return
-	}
-	return
-}
-
-func createPullRequest(ctx context.Context, api gitv1.GitopsAPI, obj unstructured.Unstructured, git connectors.Connector) (pr int, err error) {
-	api.Spec.PullRequest.Body, err = text.Template(api.Spec.PullRequest.Body, obj.Object)
-	if err != nil {
-		return
-	}
-	api.Spec.PullRequest.Title, err = text.Template(api.Spec.PullRequest.Title, obj.Object)
-	if err != nil {
-		return
-	}
-	pr, err = git.OpenPullRequest(ctx, api.Spec.Base, api.Spec.Branch, api.Spec.PullRequest)
 	return
 }
 
