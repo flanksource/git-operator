@@ -149,7 +149,7 @@ func GetKustomizaton(fs billy.Filesystem, path string) (*types.Kustomization, er
 }
 
 func CreateOrUpdateObject(ctx context.Context, logger logr.Logger, git connectors.Connector, api *gitv1.GitopsAPI, contents io.Reader) (work *gitv5.Worktree, title string, err error) {
-	api = addDefaults(api)
+	addDefaults(api)
 	obj := unstructured.Unstructured{Object: make(map[string]interface{})}
 	body, err := ioutil.ReadAll(contents)
 	if err != nil {
@@ -163,8 +163,7 @@ func CreateOrUpdateObject(ctx context.Context, logger logr.Logger, git connector
 	if err != nil {
 		return
 	}
-	api.Spec.Branch, err = text.Template(api.Spec.Branch, obj.Object)
-	if err != nil {
+	if err = templateAPIObject(api, obj); err != nil {
 		return
 	}
 	fs, work, err := git.Clone(ctx, api.Spec.Base, api.Spec.Branch)
@@ -180,21 +179,12 @@ func CreateOrUpdateObject(ctx context.Context, logger logr.Logger, git connector
 	}
 	title = fmt.Sprintf("Add/Update %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
 	logger.Info("Received", "name", api.GetName(), "namespace", api.GetNamespace(), "object", title)
-
-	kustomizationPath, err := text.Template(api.Spec.Kustomization, obj.Object)
+	logger.Info("Saving to", "path", contentPath, "kustomization", api.Spec.Kustomization, "object", title)
+	kustomization, err := GetKustomizaton(fs, api.Spec.Kustomization)
 	if err != nil {
 		return
 	}
-	contentPath, err = text.Template(contentPath, obj.Object)
-	if err != nil {
-		return
-	}
-	logger.Info("Saving to", "path", contentPath, "kustomization", kustomizationPath, "object", title)
-	kustomization, err := GetKustomizaton(fs, kustomizationPath)
-	if err != nil {
-		return
-	}
-	relativePath := strings.Replace(contentPath, path.Dir(kustomizationPath)+"/", "", -1)
+	relativePath := strings.Replace(contentPath, path.Dir(api.Spec.Kustomization)+"/", "", -1)
 	if err = copy(body, contentPath, fs, work); err != nil {
 		return
 	}
@@ -203,15 +193,7 @@ func CreateOrUpdateObject(ctx context.Context, logger logr.Logger, git connector
 		kustomization.Resources = append(kustomization.Resources, relativePath)
 	}
 	existingKustomization, _ := yaml.Marshal(kustomization)
-	if err = copy(existingKustomization, kustomizationPath, fs, work); err != nil {
-		return
-	}
-	api.Spec.PullRequest.Body, err = text.Template(api.Spec.PullRequest.Body, obj.Object)
-	if err != nil {
-		return
-	}
-	api.Spec.PullRequest.Title, err = text.Template(api.Spec.PullRequest.Title, obj.Object)
-	if err != nil {
+	if err = copy(existingKustomization, api.Spec.Kustomization, fs, work); err != nil {
 		return
 	}
 
@@ -219,7 +201,7 @@ func CreateOrUpdateObject(ctx context.Context, logger logr.Logger, git connector
 }
 
 func DeleteObject(ctx context.Context, logger logr.Logger, git connectors.Connector, api *gitv1.GitopsAPI, contents io.Reader) (work *gitv5.Worktree, title string, err error) {
-	api = addDefaults(api)
+	addDefaults(api)
 	obj := unstructured.Unstructured{Object: make(map[string]interface{})}
 	body, err := ioutil.ReadAll(contents)
 	if err != nil {
@@ -228,8 +210,7 @@ func DeleteObject(ctx context.Context, logger logr.Logger, git connectors.Connec
 	if err = json.Unmarshal(body, &obj.Object); err != nil {
 		return
 	}
-	api.Spec.Branch, err = text.Template(api.Spec.Branch, obj.Object)
-	if err != nil {
+	if err = templateAPIObject(api, obj); err != nil {
 		return
 	}
 	fs, work, err := git.Clone(ctx, api.Spec.Base, api.Spec.Branch)
@@ -246,20 +227,12 @@ func DeleteObject(ctx context.Context, logger logr.Logger, git connectors.Connec
 	title = fmt.Sprintf("Delete %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
 	logger.Info("Received", "name", api.GetName(), "namespace", api.GetNamespace(), "object", title)
 
-	kustomizationPath, err := text.Template(api.Spec.Kustomization, obj.Object)
+	logger.Info("Saving to", "path", contentPath, "kustomization", api.Spec.Kustomization, "object", title)
+	kustomization, err := GetKustomizaton(fs, api.Spec.Kustomization)
 	if err != nil {
 		return
 	}
-	contentPath, err = text.Template(contentPath, obj.Object)
-	if err != nil {
-		return
-	}
-	logger.Info("Saving to", "path", contentPath, "kustomization", kustomizationPath, "object", title)
-	kustomization, err := GetKustomizaton(fs, kustomizationPath)
-	if err != nil {
-		return
-	}
-	relativePath := strings.Replace(contentPath, path.Dir(kustomizationPath)+"/", "", -1)
+	relativePath := strings.Replace(contentPath, path.Dir(api.Spec.Kustomization)+"/", "", -1)
 
 	if err = deleteFile(contentPath, work, fs.Root()); err != nil {
 		return
@@ -271,17 +244,9 @@ func DeleteObject(ctx context.Context, logger logr.Logger, git connectors.Connec
 		if err != nil {
 			return nil, "", err
 		}
-		if err = copy(existingKustomization, kustomizationPath, fs, work); err != nil {
+		if err = copy(existingKustomization, api.Spec.Kustomization, fs, work); err != nil {
 			return nil, "", err
 		}
-	}
-	api.Spec.PullRequest.Body, err = text.Template(api.Spec.PullRequest.Body, obj.Object)
-	if err != nil {
-		return
-	}
-	api.Spec.PullRequest.Title, err = text.Template(api.Spec.PullRequest.Title, obj.Object)
-	if err != nil {
-		return
 	}
 	return work, title, nil
 }
@@ -319,7 +284,7 @@ func (r *GitopsAPIReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return nil
 }
 
-func addDefaults(api *gitv1.GitopsAPI) *gitv1.GitopsAPI {
+func addDefaults(api *gitv1.GitopsAPI) {
 	if api.Spec.Base == "" {
 		api.Spec.Base = "master"
 	}
@@ -329,7 +294,26 @@ func addDefaults(api *gitv1.GitopsAPI) *gitv1.GitopsAPI {
 	if api.Spec.Kustomization == "" {
 		api.Spec.Kustomization = "kustomization.yaml"
 	}
-	return api
+}
+
+func templateAPIObject(api *gitv1.GitopsAPI, obj unstructured.Unstructured) (err error) {
+	api.Spec.Branch, err = text.Template(api.Spec.Branch, obj.Object)
+	if err != nil {
+		return
+	}
+	api.Spec.Kustomization, err = text.Template(api.Spec.Kustomization, obj.Object)
+	if err != nil {
+		return
+	}
+	api.Spec.PullRequest.Body, err = text.Template(api.Spec.PullRequest.Body, obj.Object)
+	if err != nil {
+		return
+	}
+	api.Spec.PullRequest.Title, err = text.Template(api.Spec.PullRequest.Title, obj.Object)
+	if err != nil {
+		return
+	}
+	return nil
 }
 
 func getContentPath(api *gitv1.GitopsAPI, repoRoot string, obj unstructured.Unstructured) (contentPath string, err error) {
@@ -373,6 +357,10 @@ func getContentPath(api *gitv1.GitopsAPI, repoRoot string, obj unstructured.Unst
 		if api.Spec.Path != "" {
 			contentPath = api.Spec.Path
 		}
+	}
+	contentPath, err = text.Template(contentPath, obj.Object)
+	if err != nil {
+		return "", err
 	}
 	return contentPath, nil
 }
