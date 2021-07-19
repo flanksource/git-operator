@@ -20,8 +20,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/flanksource/kommons"
 	"io"
 	"io/ioutil"
+	yamlutil "k8s.io/apimachinery/pkg/util/yaml"
 	"net/http"
 	"os"
 	"path"
@@ -162,7 +164,8 @@ func CreateOrUpdateObject(ctx context.Context, logger logr.Logger, git connector
 	if err != nil {
 		return
 	}
-	err = yaml.Unmarshal(body, &obj.Object)
+
+	err = yamlutil.Unmarshal(body, &obj.Object)
 	if err != nil {
 		return nil, "", err
 	}
@@ -408,18 +411,34 @@ func performStrategicMerge(file string, obj unstructured.Unstructured) (body []b
 	if err != nil {
 		return nil, err
 	}
-	fileObj := unstructured.Unstructured{Object: make(map[string]interface{})}
-	err = yaml.Unmarshal(data, &fileObj.Object)
+	fileObjs, err := kommons.GetUnstructuredObjects(data)
+	if err != nil {
+		return
+	}
+	var index = -1
+	for i, fileObj := range fileObjs {
+		if getObjectKey(*fileObj) == getObjectKey(obj) {
+			index = i
+		}
+	}
+	err = mergo.Merge(&fileObjs[index].Object, obj.Object, mergo.WithOverride)
 	if err != nil {
 		return nil, err
 	}
-	err = mergo.Merge(&fileObj.Object, obj.Object, mergo.WithOverride)
-	if err != nil {
-		return nil, err
+	return getBodyFromUnstructuredObjectList(fileObjs)
+}
+
+func getBodyFromUnstructuredObjectList(fileObjs []*unstructured.Unstructured)  (body []byte, err error) {
+	for i, fileObj := range fileObjs {
+		d, err := yaml.Marshal(fileObj)
+		if err != nil {
+			return nil, err
+		}
+		body = append(body, d...)
+		if i == len(fileObjs) - 1 {
+			break
+		}
+		body = append(body, []byte("---\n")...)
 	}
-	body, err = yaml.Marshal(fileObj.Object)
-	if err != nil {
-		return nil, err
-	}
-	return
+	return body, nil
 }
