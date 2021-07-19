@@ -10,6 +10,7 @@ require (
 	github.com/go-logr/logr v0.2.1
 	github.com/go-logr/zapr v0.2.0 // indirect
 	github.com/google/go-github/v32 v32.1.0
+	github.com/imdario/mergo v0.3.9
 	github.com/jenkins-x/go-scm v1.5.224
 	github.com/labstack/echo v3.3.10+incompatible
 	github.com/onsi/ginkgo v1.14.0

@@ -29,6 +29,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/imdario/mergo"
+
 	"github.com/go-git/go-billy/v5"
 	gitv5 "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -155,13 +157,14 @@ func CreateOrUpdateObject(ctx context.Context, logger logr.Logger, git connector
 	if err != nil {
 		return
 	}
-	if err = json.Unmarshal(body, &obj.Object); err != nil {
-		return
-	}
 	body = []byte(TabToSpace(string(body)))
 	body, err = yaml.JSONToYAML(body)
 	if err != nil {
 		return
+	}
+	err = yaml.Unmarshal(body, &obj.Object)
+	if err != nil {
+		return nil, "", err
 	}
 	if err = templateAPIObject(api, obj); err != nil {
 		return
@@ -175,7 +178,14 @@ func CreateOrUpdateObject(ctx context.Context, logger logr.Logger, git connector
 		return
 	}
 	if contentPath == "" {
+		// need to create a new file with the content
 		contentPath = fmt.Sprintf("%s-%s-%s.yaml", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+	} else {
+		// file already exists performing merge
+		body, err = performStrategicMerge(fs.Root()+"/"+contentPath, obj)
+		if err != nil {
+			return nil, "", err
+		}
 	}
 	title = fmt.Sprintf("Add/Update %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
 	logger.Info("Received", "name", api.GetName(), "namespace", api.GetNamespace(), "object", title)
@@ -391,4 +401,25 @@ func CreateCommit(api *gitv1.GitopsAPI, work *gitv5.Worktree, title string) (has
 
 func getObjectKey(obj unstructured.Unstructured) string {
 	return fmt.Sprintf("%s-%s-%s", obj.GetName(), obj.GetNamespace(), obj.GetKind())
+}
+
+func performStrategicMerge(file string, obj unstructured.Unstructured) (body []byte, err error) {
+	data, err := ioutil.ReadFile(file)
+	if err != nil {
+		return nil, err
+	}
+	fileObj := unstructured.Unstructured{Object: make(map[string]interface{})}
+	err = yaml.Unmarshal(data, &fileObj.Object)
+	if err != nil {
+		return nil, err
+	}
+	err = mergo.Merge(&fileObj.Object, obj.Object, mergo.WithOverride)
+	if err != nil {
+		return nil, err
+	}
+	body, err = yaml.Marshal(fileObj.Object)
+	if err != nil {
+		return nil, err
+	}
+	return
 }
