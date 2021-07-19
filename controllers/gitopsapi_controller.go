@@ -141,7 +141,10 @@ func GetKustomizaton(fs billy.Filesystem, path string) (*types.Kustomization, er
 	if err != nil {
 		return nil, err
 	}
-	existingKustomization, _ := ioutil.ReadAll(existing)
+	existingKustomization, err := ioutil.ReadAll(existing)
+	if err != nil {
+		return &kustomization, err
+	}
 	if err := yaml.Unmarshal(existingKustomization, &kustomization); err != nil {
 		return nil, err
 	}
@@ -192,7 +195,10 @@ func CreateOrUpdateObject(ctx context.Context, logger logr.Logger, git connector
 	if index == -1 {
 		kustomization.Resources = append(kustomization.Resources, relativePath)
 	}
-	existingKustomization, _ := yaml.Marshal(kustomization)
+	existingKustomization, err := yaml.Marshal(kustomization)
+	if err != nil {
+		return
+	}
 	if err = copy(existingKustomization, api.Spec.Kustomization, fs, work); err != nil {
 		return
 	}
