@@ -150,6 +150,7 @@ func TestGitopsAPICreate(ctx context.Context, test *console.TestResults) error {
 	}
 
 	body := fmt.Sprintf(`
+	[
 	{
 		"apiVersion": "acmp.corp/v1",
 		"kind": "NamespaceRequest",
@@ -161,20 +162,20 @@ func TestGitopsAPICreate(ctx context.Context, test *console.TestResults) error {
 			"memory": 32
 		 }
 	}
+	]
 	`, getBranchName("test"))
 
 	log.Info("json", "value", body)
 	api := &gitv1.GitopsAPI{
 		Spec: gitv1.GitopsAPISpec{
 			GitRepository: repository,
-			Branch:        "{{.metadata.name}}",
 			PullRequest: &gitv1.PullRequestTemplate{
 				Title: "Automated PR: Created new object {{.metadata.name}}",
 				Body:  "Somebody created a new PR {{.metadata.name}}",
 			},
 		},
 	}
-	work, title, err := controllers.CreateOrUpdateObject(ctx, log, git, api, bytes.NewReader([]byte(body)))
+	work, title, err := controllers.CreateOrUpdateObject(ctx, log, git, api, bytes.NewReader([]byte(body)), "application/json")
 	if err != nil {
 		return err
 	}
@@ -207,6 +208,7 @@ func TestGitopsAPIUpdate(ctx context.Context, test *console.TestResults) error {
 	}
 	branchName := getBranchName("test")
 	body := `
+	[
 	{
 		"apiVersion": "v1",
     	"data": {
@@ -219,6 +221,7 @@ func TestGitopsAPIUpdate(ctx context.Context, test *console.TestResults) error {
         	"namespace": "default"
 		}
 	}
+	]
 	`
 	api := &gitv1.GitopsAPI{
 		Spec: gitv1.GitopsAPISpec{
@@ -233,7 +236,7 @@ func TestGitopsAPIUpdate(ctx context.Context, test *console.TestResults) error {
 		},
 	}
 	log.Info("json", "value", body)
-	work, title, err := controllers.CreateOrUpdateObject(ctx, log, git, api, bytes.NewReader([]byte(body)))
+	work, title, err := controllers.CreateOrUpdateObject(ctx, log, git, api, bytes.NewReader([]byte(body)), "application/json")
 	if err != nil {
 		return err
 	}
@@ -266,6 +269,7 @@ func TestGitopsAPIDelete(ctx context.Context, test *console.TestResults) error {
 	}
 	branchName := getBranchName("test")
 	body := `
+	[
 	{
         "apiVersion": "v1",
     	"data": {
@@ -278,6 +282,7 @@ func TestGitopsAPIDelete(ctx context.Context, test *console.TestResults) error {
         	"namespace": "default"
 		}
 	}
+	]
 	`
 	log.Info("json", "value", body)
 	api := &gitv1.GitopsAPI{
@@ -291,7 +296,7 @@ func TestGitopsAPIDelete(ctx context.Context, test *console.TestResults) error {
 			},
 		},
 	}
-	work, title, err := controllers.DeleteObject(ctx, log, git, api, bytes.NewReader([]byte(body)))
+	work, title, err := controllers.DeleteObject(ctx, log, git, api, bytes.NewReader([]byte(body)), "application/json")
 	if err != nil {
 		return err
 	}

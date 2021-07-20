@@ -19,7 +19,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -84,7 +83,7 @@ func serve(c echo.Context, r *GitopsAPIReconciler) error {
 	if token == "" {
 		token = c.Request().Header.Get("Authorization")
 	}
-
+	contentType := c.Request().Header.Get("Content-Type")
 	api := gitv1.GitopsAPI{}
 	if err := r.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, &api); err != nil {
 		return c.String(http.StatusNotFound, "")
@@ -110,9 +109,9 @@ func serve(c echo.Context, r *GitopsAPIReconciler) error {
 	var title, hash string
 	var pr int
 	if deleteObj {
-		work, title, err = DeleteObject(ctx, r.Log, git, &api, c.Request().Body)
+		work, title, err = DeleteObject(ctx, r.Log, git, &api, c.Request().Body, contentType)
 	} else {
-		work, title, err = CreateOrUpdateObject(ctx, r.Log, git, &api, c.Request().Body)
+		work, title, err = CreateOrUpdateObject(ctx, r.Log, git, &api, c.Request().Body, contentType)
 	}
 	if err != nil {
 		r.Log.Error(err, "error updating files")
@@ -153,20 +152,24 @@ func GetKustomizaton(fs billy.Filesystem, path string) (*types.Kustomization, er
 	return &kustomization, nil
 }
 
-func CreateOrUpdateObject(ctx context.Context, logger logr.Logger, git connectors.Connector, api *gitv1.GitopsAPI, contents io.Reader) (work *gitv5.Worktree, title string, err error) {
+func CreateOrUpdateObject(ctx context.Context, logger logr.Logger, git connectors.Connector, api *gitv1.GitopsAPI, contents io.Reader, contentType string) (work *gitv5.Worktree, title string, err error) {
 	addDefaults(api)
 	body, err := ioutil.ReadAll(contents)
 	if err != nil {
 		return
 	}
-	objs, err := kommons.GetUnstructuredObjectsFromJson(body)
-	if err != nil {
-		return
-	}
 	body = []byte(TabToSpace(string(body)))
-	body, err = yaml.JSONToYAML(body)
-	if err != nil {
-		return
+	var objs []*unstructured.Unstructured
+	if strings.Contains(contentType, "yaml") || strings.Contains(contentType, "yml") {
+		objs, err = kommons.GetUnstructuredObjects(body)
+		if err != nil {
+			return
+		}
+	} else {
+		objs, err = kommons.GetUnstructuredObjectsFromJson(body)
+		if err != nil {
+			return
+		}
 	}
 	fs, work, err := git.Clone(ctx, api.Spec.Base, api.Spec.Branch)
 	if err != nil {
@@ -183,7 +186,11 @@ func CreateOrUpdateObject(ctx context.Context, logger logr.Logger, git connector
 		}
 		if contentPath == "" {
 			// need to create a new file with the content
-			contentPath = fmt.Sprintf("%s-%s-%s.yaml", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+			contentPath = filepath.Join(api.Spec.SearchPath, fmt.Sprintf("%s-%s-%s.yaml", obj.GetKind(), obj.GetNamespace(), obj.GetName()))
+			body, err = yaml.Marshal(obj)
+			if err != nil {
+				return nil, "", err
+			}
 		} else {
 			// file already exists performing merge
 			body, err = performStrategicMerge(filepath.Join(fs.Root(), contentPath), obj)
@@ -218,17 +225,25 @@ func CreateOrUpdateObject(ctx context.Context, logger logr.Logger, git connector
 	return work, title, nil
 }
 
-func DeleteObject(ctx context.Context, logger logr.Logger, git connectors.Connector, api *gitv1.GitopsAPI, contents io.Reader) (work *gitv5.Worktree, title string, err error) {
+func DeleteObject(ctx context.Context, logger logr.Logger, git connectors.Connector, api *gitv1.GitopsAPI, contents io.Reader, contentType string) (work *gitv5.Worktree, title string, err error) {
 	addDefaults(api)
 	body, err := ioutil.ReadAll(contents)
 	if err != nil {
 		return
 	}
-	objs, err := kommons.GetUnstructuredObjectsFromJson(body)
-	if err != nil {
-		return
+	body = []byte(TabToSpace(string(body)))
+	var objs []*unstructured.Unstructured
+	if strings.Contains(contentType, "yaml") || strings.Contains(contentType, "yml") {
+		objs, err = kommons.GetUnstructuredObjects(body)
+		if err != nil {
+			return
+		}
+	} else {
+		objs, err = kommons.GetUnstructuredObjectsFromJson(body)
+		if err != nil {
+			return
+		}
 	}
-	fmt.Println(spew.Sdump(objs))
 	fs, work, err := git.Clone(ctx, api.Spec.Base, api.Spec.Branch)
 	if err != nil {
 		return
@@ -309,7 +324,6 @@ func (r *GitopsAPIReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return serve(c, r)
 	})
 	e.POST("/_delete/:namespace/:name/:token", func(c echo.Context) error {
-
 		return serve(c, r)
 	})
 	go func() {
@@ -487,10 +501,8 @@ func getObjectIndex(obj *unstructured.Unstructured, fileObjs []*unstructured.Uns
 }
 
 func isFileEmpty(data []byte) (bool, error) {
-	fmt.Println("I am getting called")
 	fileObjs, err := kommons.GetUnstructuredObjects(data)
 	if err != nil {
-		fmt.Println("i'm giving error")
 		return false, err
 	}
 	return len(fileObjs) == 0, nil

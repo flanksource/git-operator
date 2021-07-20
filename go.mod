@@ -3,7 +3,6 @@ module github.com/flanksource/git-operator
 go 1.14
 
 require (
-	github.com/davecgh/go-spew v1.1.1
 	github.com/flanksource/commons v1.5.6
 	github.com/flanksource/kommons v0.20.1
 	github.com/go-git/go-billy/v5 v5.0.0
