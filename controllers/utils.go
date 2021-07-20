@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"unicode"
 
@@ -29,7 +30,7 @@ func copy(data []byte, path string, fs billy.Filesystem, work *gitv5.Worktree) e
 }
 
 func deleteFile(path string, work *gitv5.Worktree, repoRoot string) error {
-	fullPath := repoRoot + "/" + path
+	fullPath := filepath.Join(repoRoot, path)
 	err := os.Remove(fullPath)
 	if err != nil {
 		return errors.Wrap(err, "failed to delete file")

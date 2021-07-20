@@ -18,10 +18,8 @@ package controllers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"github.com/gosimple/slug"
-	"github.com/labstack/gommon/random"
+	"github.com/davecgh/go-spew/spew"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -30,6 +28,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/gosimple/slug"
+	"github.com/labstack/gommon/random"
 
 	"github.com/flanksource/kommons"
 	"github.com/go-git/go-billy/v5"
@@ -185,7 +186,7 @@ func CreateOrUpdateObject(ctx context.Context, logger logr.Logger, git connector
 			contentPath = fmt.Sprintf("%s-%s-%s.yaml", obj.GetKind(), obj.GetNamespace(), obj.GetName())
 		} else {
 			// file already exists performing merge
-			body, err = performStrategicMerge(filepath.Join(fs.Root(),contentPath), obj)
+			body, err = performStrategicMerge(filepath.Join(fs.Root(), contentPath), obj)
 			if err != nil {
 				return nil, "", err
 			}
@@ -207,7 +208,7 @@ func CreateOrUpdateObject(ctx context.Context, logger logr.Logger, git connector
 		}
 		existingKustomization, err := yaml.Marshal(kustomization)
 		if err != nil {
-			return nil,"", err
+			return nil, "", err
 		}
 		if err = copy(existingKustomization, api.Spec.Kustomization, fs, work); err != nil {
 			return nil, "", err
@@ -219,50 +220,66 @@ func CreateOrUpdateObject(ctx context.Context, logger logr.Logger, git connector
 
 func DeleteObject(ctx context.Context, logger logr.Logger, git connectors.Connector, api *gitv1.GitopsAPI, contents io.Reader) (work *gitv5.Worktree, title string, err error) {
 	addDefaults(api)
-	obj := unstructured.Unstructured{Object: make(map[string]interface{})}
 	body, err := ioutil.ReadAll(contents)
 	if err != nil {
 		return
 	}
-	if err = json.Unmarshal(body, &obj.Object); err != nil {
+	objs, err := kommons.GetUnstructuredObjectsFromJson(body)
+	if err != nil {
 		return
 	}
-	if err = templateAPIObject(api, &obj); err != nil {
-		return
-	}
+	fmt.Println(spew.Sdump(objs))
 	fs, work, err := git.Clone(ctx, api.Spec.Base, api.Spec.Branch)
 	if err != nil {
 		return
 	}
-	contentPath, err := getContentPath(api, fs.Root(), &obj)
-	if err != nil {
-		return
-	}
-	if contentPath == "" {
-		return nil, "", fmt.Errorf("could not find the object to delete")
-	}
-	title = fmt.Sprintf("Delete %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
-	logger.Info("Received", "name", api.GetName(), "namespace", api.GetNamespace(), "object", title)
-
-	logger.Info("Saving to", "path", contentPath, "kustomization", api.Spec.Kustomization, "object", title)
-	kustomization, err := GetKustomizaton(fs, api.Spec.Kustomization)
-	if err != nil {
-		return
-	}
-	relativePath := strings.Replace(contentPath, path.Dir(api.Spec.Kustomization)+"/", "", -1)
-
-	if err = deleteFile(contentPath, work, fs.Root()); err != nil {
-		return
-	}
-	index := findElement(kustomization.Resources, relativePath)
-	if index != -1 {
-		kustomization.Resources = removeElement(kustomization.Resources, index)
-		existingKustomization, err := yaml.Marshal(kustomization)
+	title = "Delete "
+	for _, obj := range objs {
+		if err = templateAPIObject(api, obj); err != nil {
+			return nil, "", err
+		}
+		contentPath, err := getContentPath(api, fs.Root(), obj)
 		if err != nil {
 			return nil, "", err
 		}
-		if err = copy(existingKustomization, api.Spec.Kustomization, fs, work); err != nil {
+		if contentPath == "" {
+			return nil, "", fmt.Errorf("could not find the object %v to delete", getObjectKey(obj))
+		}
+		title = title + fmt.Sprintf("%s/%s/%s ", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+		logger.Info("Received", "name", api.GetName(), "namespace", api.GetNamespace(), "object", title)
+
+		logger.Info("Saving to", "path", contentPath, "kustomization", api.Spec.Kustomization, "object", title)
+		kustomization, err := GetKustomizaton(fs, api.Spec.Kustomization)
+		if err != nil {
 			return nil, "", err
+		}
+		relativePath := strings.Replace(contentPath, path.Dir(api.Spec.Kustomization)+"/", "", -1)
+		body, err = deleteObjectFromFile(filepath.Join(fs.Root(), contentPath), obj)
+		if err != nil {
+			return nil, "", err
+		}
+		if err = copy(body, contentPath, fs, work); err != nil {
+			return nil, "", err
+		}
+		delete, err := isFileEmpty(body)
+		if err != nil {
+			return nil, "", err
+		}
+		if delete {
+			if err = deleteFile(contentPath, work, fs.Root()); err != nil {
+				return nil, "", err
+			}
+			index := findElement(kustomization.Resources, relativePath)
+			if index != -1 {
+				kustomization.Resources = removeElement(kustomization.Resources, index)
+				existingKustomization, err := yaml.Marshal(kustomization)
+				if err != nil {
+					return nil, "", err
+				}
+				if err = copy(existingKustomization, api.Spec.Kustomization, fs, work); err != nil {
+					return nil, "", err
+				}
+			}
 		}
 	}
 	return work, title, nil
@@ -292,6 +309,7 @@ func (r *GitopsAPIReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return serve(c, r)
 	})
 	e.POST("/_delete/:namespace/:name/:token", func(c echo.Context) error {
+
 		return serve(c, r)
 	})
 	go func() {
@@ -314,7 +332,7 @@ func addDefaults(api *gitv1.GitopsAPI) {
 	}
 	if api.Spec.Kustomization == "" {
 		if api.Spec.SearchPath != "" {
-			api.Spec.Kustomization = filepath.Join(api.Spec.SearchPath,"kustomization.yaml")
+			api.Spec.Kustomization = filepath.Join(api.Spec.SearchPath, "kustomization.yaml")
 		} else {
 			api.Spec.Kustomization = "kustomization.yaml"
 		}
@@ -422,13 +440,7 @@ func performStrategicMerge(file string, obj *unstructured.Unstructured) (body []
 	if err != nil {
 		return
 	}
-	var index = -1
-	for i, fileObj := range fileObjs {
-		if getObjectKey(fileObj) == getObjectKey(obj) {
-			index = i
-			break
-		}
-	}
+	index := getObjectIndex(obj, fileObjs)
 	oldObj, err := yaml.Marshal(fileObjs[index])
 	if err != nil {
 		return nil, err
@@ -441,6 +453,45 @@ func performStrategicMerge(file string, obj *unstructured.Unstructured) (body []
 	if err != nil {
 		return nil, err
 	}
-	fileData := strings.Replace(string(data), string(oldObj), string(newObj), -1)
-	return []byte(fileData), nil
+	body = []byte(strings.Replace(string(data), string(oldObj), string(newObj), -1))
+	return
+}
+
+func deleteObjectFromFile(file string, obj *unstructured.Unstructured) (body []byte, err error) {
+	data, err := ioutil.ReadFile(file)
+	if err != nil {
+		return nil, err
+	}
+	fileObjs, err := kommons.GetUnstructuredObjects(data)
+	if err != nil {
+		return
+	}
+	index := getObjectIndex(obj, fileObjs)
+	oldObj, err := yaml.Marshal(fileObjs[index])
+	if err != nil {
+		return nil, err
+	}
+	body = []byte(strings.Replace(string(data), string(oldObj), "", -1))
+	return
+}
+
+func getObjectIndex(obj *unstructured.Unstructured, fileObjs []*unstructured.Unstructured) (index int) {
+	index = -1
+	for i, fileObj := range fileObjs {
+		if getObjectKey(fileObj) == getObjectKey(obj) {
+			index = i
+			break
+		}
+	}
+	return index
+}
+
+func isFileEmpty(data []byte) (bool, error) {
+	fmt.Println("I am getting called")
+	fileObjs, err := kommons.GetUnstructuredObjects(data)
+	if err != nil {
+		fmt.Println("i'm giving error")
+		return false, err
+	}
+	return len(fileObjs) == 0, nil
 }
