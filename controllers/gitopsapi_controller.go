@@ -38,7 +38,6 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/imdario/mergo"
 	"github.com/labstack/echo"
-	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
@@ -175,12 +174,19 @@ func CreateOrUpdateObject(ctx context.Context, logger logr.Logger, git connector
 	if err != nil {
 		return nil, "", err
 	}
+	var contentPaths map[string]string
+	if api.Spec.SearchPath != "" {
+		contentPaths, err = getContentPaths(fs.Root(), api.Spec.SearchPath)
+		if err != nil {
+			return nil, "", err
+		}
+	}
 	title = "Add/Update "
 	for _, obj := range objs {
 		if err = templateAPIObject(api, obj); err != nil {
 			return
 		}
-		contentPath, err := getContentPath(api, fs.Root(), obj)
+		contentPath, err := getContentPath(api, obj, contentPaths)
 		if err != nil {
 			return nil, "", err
 		}
@@ -248,12 +254,19 @@ func DeleteObject(ctx context.Context, logger logr.Logger, git connectors.Connec
 	if err != nil {
 		return
 	}
+	var contentPaths map[string]string
+	if api.Spec.SearchPath != "" {
+		contentPaths, err = getContentPaths(fs.Root(), api.Spec.SearchPath)
+		if err != nil {
+			return nil, "", err
+		}
+	}
 	title = "Delete "
 	for _, obj := range objs {
 		if err = templateAPIObject(api, obj); err != nil {
 			return nil, "", err
 		}
-		contentPath, err := getContentPath(api, fs.Root(), obj)
+		contentPath, err := getContentPath(api, obj, contentPaths)
 		if err != nil {
 			return nil, "", err
 		}
@@ -369,42 +382,9 @@ func templateAPIObject(api *gitv1.GitopsAPI, obj *unstructured.Unstructured) (er
 	return nil
 }
 
-func getContentPath(api *gitv1.GitopsAPI, repoRoot string, obj *unstructured.Unstructured) (contentPath string, err error) {
+func getContentPath(api *gitv1.GitopsAPI, obj *unstructured.Unstructured, contentPaths map[string]string) (contentPath string, err error) {
 	if api.Spec.SearchPath != "" {
-		var searchPath string
-		objKey := getObjectKey(obj)
-		searchPath = filepath.Join(repoRoot, api.Spec.SearchPath)
-		if err := filepath.Walk(searchPath, func(filePath string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if info.Name() == "kustomization.yaml" || info.IsDir() {
-				return nil
-			}
-			if path.Ext(filePath) == ".yaml" || path.Ext(filePath) == ".yml" {
-				buf, err := ioutil.ReadFile(filePath)
-				if err != nil {
-					return err
-				}
-				resources, err := kommons.GetUnstructuredObjects(buf)
-				if err != nil {
-					return err
-				}
-				for _, resource := range resources {
-					resourceKey := fmt.Sprintf("%s-%s-%s", resource.GetName(), resource.GetNamespace(), resource.GetKind())
-					if objKey == resourceKey {
-						contentPath, err = filepath.Rel(repoRoot, filePath)
-						if err != nil {
-							return err
-						}
-						return nil
-					}
-				}
-			}
-			return nil
-		}); err != nil {
-			return "", errors.WithStack(err)
-		}
+		contentPath = contentPaths[getObjectKey(obj)]
 	} else {
 		if api.Spec.Path != "" {
 			contentPath = api.Spec.Path
@@ -506,4 +486,37 @@ func isFileEmpty(data []byte) (bool, error) {
 		return false, err
 	}
 	return len(fileObjs) == 0, nil
+}
+
+func getContentPaths(repoRoot, searchPath string) (map[string]string, error) {
+	contentPaths := make(map[string]string)
+	walkPath := filepath.Join(repoRoot, searchPath)
+	if err := filepath.Walk(walkPath, func(filePath string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.Name() == "kustomization.yaml" || info.IsDir() {
+			return nil
+		}
+		if path.Ext(filePath) == ".yaml" || path.Ext(filePath) == ".yml" {
+			buf, err := ioutil.ReadFile(filePath)
+			if err != nil {
+				return err
+			}
+			resources, err := kommons.GetUnstructuredObjects(buf)
+			if err != nil {
+				return err
+			}
+			for _, resource := range resources {
+				contentPaths[getObjectKey(resource)], err = filepath.Rel(repoRoot, filePath)
+				if err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return contentPaths, nil
 }
