@@ -5,15 +5,17 @@ go 1.14
 require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/flanksource/commons v1.5.6
-	github.com/flanksource/kommons v0.20.0
+	github.com/flanksource/kommons v0.20.1
 	github.com/go-git/go-billy/v5 v5.0.0
 	github.com/go-git/go-git/v5 v5.1.0
 	github.com/go-logr/logr v0.2.1
 	github.com/go-logr/zapr v0.2.0 // indirect
 	github.com/google/go-github/v32 v32.1.0
+	github.com/gosimple/slug v1.9.0
 	github.com/imdario/mergo v0.3.9
 	github.com/jenkins-x/go-scm v1.5.224
 	github.com/labstack/echo v3.3.10+incompatible
+	github.com/labstack/gommon v0.3.0
 	github.com/onsi/ginkgo v1.14.0
 	github.com/onsi/gomega v1.10.1
 	github.com/pkg/errors v0.9.1
@@ -34,7 +36,6 @@ require (
 
 replace (
 	github.com/Azure/go-autorest => github.com/Azure/go-autorest v14.2.0+incompatible
-	github.com/flanksource/kommons => /Users/tarunkhandelwal/flanksource/kommons
 	google.golang.org/genproto => google.golang.org/genproto v0.0.0-20210716133855-ce7ef5c701ea
 	google.golang.org/grpc => google.golang.org/grpc v1.29.1
 	k8s.io/client-go => k8s.io/client-go v0.20.4

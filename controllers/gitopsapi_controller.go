@@ -20,10 +20,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/flanksource/kommons"
+	"github.com/gosimple/slug"
+	"github.com/labstack/gommon/random"
 	"io"
 	"io/ioutil"
-	yamlutil "k8s.io/apimachinery/pkg/util/yaml"
 	"net/http"
 	"os"
 	"path"
@@ -31,12 +31,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/imdario/mergo"
-
+	"github.com/flanksource/kommons"
 	"github.com/go-git/go-billy/v5"
 	gitv5 "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-logr/logr"
+	"github.com/imdario/mergo"
 	"github.com/labstack/echo"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -114,7 +114,7 @@ func serve(c echo.Context, r *GitopsAPIReconciler) error {
 		work, title, err = CreateOrUpdateObject(ctx, r.Log, git, &api, c.Request().Body)
 	}
 	if err != nil {
-		r.Log.Error(err, "error upating files")
+		r.Log.Error(err, "error updating files")
 		return c.String(http.StatusInternalServerError, err.Error())
 	}
 	hash, err = CreateCommit(&api, work, title)
@@ -154,8 +154,11 @@ func GetKustomizaton(fs billy.Filesystem, path string) (*types.Kustomization, er
 
 func CreateOrUpdateObject(ctx context.Context, logger logr.Logger, git connectors.Connector, api *gitv1.GitopsAPI, contents io.Reader) (work *gitv5.Worktree, title string, err error) {
 	addDefaults(api)
-	obj := unstructured.Unstructured{Object: make(map[string]interface{})}
 	body, err := ioutil.ReadAll(contents)
+	if err != nil {
+		return
+	}
+	objs, err := kommons.GetUnstructuredObjectsFromJson(body)
 	if err != nil {
 		return
 	}
@@ -164,50 +167,51 @@ func CreateOrUpdateObject(ctx context.Context, logger logr.Logger, git connector
 	if err != nil {
 		return
 	}
-
-	err = yamlutil.Unmarshal(body, &obj.Object)
+	fs, work, err := git.Clone(ctx, api.Spec.Base, api.Spec.Branch)
 	if err != nil {
 		return nil, "", err
 	}
-	if err = templateAPIObject(api, obj); err != nil {
-		return
-	}
-	fs, work, err := git.Clone(ctx, api.Spec.Base, api.Spec.Branch)
-	if err != nil {
-		return
-	}
-	contentPath, err := getContentPath(api, fs.Root(), obj)
-	if err != nil {
-		return
-	}
-	if contentPath == "" {
-		// need to create a new file with the content
-		contentPath = fmt.Sprintf("%s-%s-%s.yaml", obj.GetKind(), obj.GetNamespace(), obj.GetName())
-	} else {
-		// file already exists performing merge
-		body, err = performStrategicMerge(fs.Root()+"/"+contentPath, obj)
+	title = "Add/Update "
+	for _, obj := range objs {
+		if err = templateAPIObject(api, obj); err != nil {
+			return
+		}
+		contentPath, err := getContentPath(api, fs.Root(), obj)
 		if err != nil {
 			return nil, "", err
 		}
-	}
-	title = fmt.Sprintf("Add/Update %s/%s/%s", obj.GetKind(), obj.GetNamespace(), obj.GetName())
-	logger.Info("Received", "name", api.GetName(), "namespace", api.GetNamespace(), "object", title)
-	logger.Info("Saving to", "path", contentPath, "kustomization", api.Spec.Kustomization, "object", title)
-	kustomization, err := GetKustomizaton(fs, api.Spec.Kustomization)
-	if err != nil {
-		return
-	}
-	relativePath := strings.Replace(contentPath, path.Dir(api.Spec.Kustomization)+"/", "", -1)
-	if err = copy(body, contentPath, fs, work); err != nil {
-		return
-	}
-	index := findElement(kustomization.Resources, relativePath)
-	if index == -1 {
-		kustomization.Resources = append(kustomization.Resources, relativePath)
-	}
-	existingKustomization, _ := yaml.Marshal(kustomization)
-	if err = copy(existingKustomization, api.Spec.Kustomization, fs, work); err != nil {
-		return
+		if contentPath == "" {
+			// need to create a new file with the content
+			contentPath = fmt.Sprintf("%s-%s-%s.yaml", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+		} else {
+			// file already exists performing merge
+			body, err = performStrategicMerge(filepath.Join(fs.Root(),contentPath), obj)
+			if err != nil {
+				return nil, "", err
+			}
+		}
+		title = title + fmt.Sprintf("%s/%s/%s ", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+		logger.Info("Received", "name", api.GetName(), "namespace", api.GetNamespace(), "object", title)
+		logger.Info("Saving to", "path", contentPath, "kustomization", api.Spec.Kustomization, "object", title)
+		kustomization, err := GetKustomizaton(fs, api.Spec.Kustomization)
+		if err != nil {
+			return nil, "", err
+		}
+		relativePath := strings.Replace(contentPath, path.Dir(api.Spec.Kustomization)+"/", "", -1)
+		if err = copy(body, contentPath, fs, work); err != nil {
+			return nil, "", err
+		}
+		index := findElement(kustomization.Resources, relativePath)
+		if index == -1 {
+			kustomization.Resources = append(kustomization.Resources, relativePath)
+		}
+		existingKustomization, err := yaml.Marshal(kustomization)
+		if err != nil {
+			return nil,"", err
+		}
+		if err = copy(existingKustomization, api.Spec.Kustomization, fs, work); err != nil {
+			return nil, "", err
+		}
 	}
 
 	return work, title, nil
@@ -223,14 +227,14 @@ func DeleteObject(ctx context.Context, logger logr.Logger, git connectors.Connec
 	if err = json.Unmarshal(body, &obj.Object); err != nil {
 		return
 	}
-	if err = templateAPIObject(api, obj); err != nil {
+	if err = templateAPIObject(api, &obj); err != nil {
 		return
 	}
 	fs, work, err := git.Clone(ctx, api.Spec.Base, api.Spec.Branch)
 	if err != nil {
 		return
 	}
-	contentPath, err := getContentPath(api, fs.Root(), obj)
+	contentPath, err := getContentPath(api, fs.Root(), &obj)
 	if err != nil {
 		return
 	}
@@ -302,18 +306,22 @@ func addDefaults(api *gitv1.GitopsAPI) {
 		api.Spec.Base = "master"
 	}
 	if api.Spec.Branch == "" {
-		api.Spec.Branch = api.Spec.Base
+		if api.Spec.PullRequest != nil {
+			api.Spec.Branch = slug.Make(api.Spec.PullRequest.Title) + "-" + random.String(4)
+		} else {
+			api.Spec.Branch = api.Spec.Base
+		}
 	}
 	if api.Spec.Kustomization == "" {
-		api.Spec.Kustomization = "kustomization.yaml"
+		if api.Spec.SearchPath != "" {
+			api.Spec.Kustomization = filepath.Join(api.Spec.SearchPath,"kustomization.yaml")
+		} else {
+			api.Spec.Kustomization = "kustomization.yaml"
+		}
 	}
 }
 
-func templateAPIObject(api *gitv1.GitopsAPI, obj unstructured.Unstructured) (err error) {
-	api.Spec.Branch, err = text.Template(api.Spec.Branch, obj.Object)
-	if err != nil {
-		return
-	}
+func templateAPIObject(api *gitv1.GitopsAPI, obj *unstructured.Unstructured) (err error) {
 	api.Spec.Kustomization, err = text.Template(api.Spec.Kustomization, obj.Object)
 	if err != nil {
 		return
@@ -329,15 +337,12 @@ func templateAPIObject(api *gitv1.GitopsAPI, obj unstructured.Unstructured) (err
 	return nil
 }
 
-func getContentPath(api *gitv1.GitopsAPI, repoRoot string, obj unstructured.Unstructured) (contentPath string, err error) {
+func getContentPath(api *gitv1.GitopsAPI, repoRoot string, obj *unstructured.Unstructured) (contentPath string, err error) {
 	if api.Spec.SearchPath != "" {
+		var searchPath string
 		objKey := getObjectKey(obj)
-		if strings.HasSuffix(repoRoot, "/") {
-			api.Spec.SearchPath = repoRoot + api.Spec.SearchPath
-		} else {
-			api.Spec.SearchPath = repoRoot + "/" + api.Spec.SearchPath
-		}
-		if err := filepath.Walk(api.Spec.SearchPath, func(filePath string, info os.FileInfo, err error) error {
+		searchPath = filepath.Join(repoRoot, api.Spec.SearchPath)
+		if err := filepath.Walk(searchPath, func(filePath string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}
@@ -345,21 +350,23 @@ func getContentPath(api *gitv1.GitopsAPI, repoRoot string, obj unstructured.Unst
 				return nil
 			}
 			if path.Ext(filePath) == ".yaml" || path.Ext(filePath) == ".yml" {
-				resource := unstructured.Unstructured{Object: make(map[string]interface{})}
 				buf, err := ioutil.ReadFile(filePath)
 				if err != nil {
 					return err
 				}
-				if err := yaml.Unmarshal(buf, &resource); err != nil {
+				resources, err := kommons.GetUnstructuredObjects(buf)
+				if err != nil {
 					return err
 				}
-				resourceKey := fmt.Sprintf("%s-%s-%s", resource.GetName(), resource.GetNamespace(), resource.GetKind())
-				if objKey == resourceKey {
-					contentPath, err = filepath.Rel(repoRoot, filePath)
-					if err != nil {
-						return err
+				for _, resource := range resources {
+					resourceKey := fmt.Sprintf("%s-%s-%s", resource.GetName(), resource.GetNamespace(), resource.GetKind())
+					if objKey == resourceKey {
+						contentPath, err = filepath.Rel(repoRoot, filePath)
+						if err != nil {
+							return err
+						}
+						return nil
 					}
-					return nil
 				}
 			}
 			return nil
@@ -402,11 +409,11 @@ func CreateCommit(api *gitv1.GitopsAPI, work *gitv5.Worktree, title string) (has
 	return
 }
 
-func getObjectKey(obj unstructured.Unstructured) string {
+func getObjectKey(obj *unstructured.Unstructured) string {
 	return fmt.Sprintf("%s-%s-%s", obj.GetName(), obj.GetNamespace(), obj.GetKind())
 }
 
-func performStrategicMerge(file string, obj unstructured.Unstructured) (body []byte, err error) {
+func performStrategicMerge(file string, obj *unstructured.Unstructured) (body []byte, err error) {
 	data, err := ioutil.ReadFile(file)
 	if err != nil {
 		return nil, err
@@ -417,28 +424,23 @@ func performStrategicMerge(file string, obj unstructured.Unstructured) (body []b
 	}
 	var index = -1
 	for i, fileObj := range fileObjs {
-		if getObjectKey(*fileObj) == getObjectKey(obj) {
+		if getObjectKey(fileObj) == getObjectKey(obj) {
 			index = i
+			break
 		}
+	}
+	oldObj, err := yaml.Marshal(fileObjs[index])
+	if err != nil {
+		return nil, err
 	}
 	err = mergo.Merge(&fileObjs[index].Object, obj.Object, mergo.WithOverride)
 	if err != nil {
 		return nil, err
 	}
-	return getBodyFromUnstructuredObjectList(fileObjs)
-}
-
-func getBodyFromUnstructuredObjectList(fileObjs []*unstructured.Unstructured)  (body []byte, err error) {
-	for i, fileObj := range fileObjs {
-		d, err := yaml.Marshal(fileObj)
-		if err != nil {
-			return nil, err
-		}
-		body = append(body, d...)
-		if i == len(fileObjs) - 1 {
-			break
-		}
-		body = append(body, []byte("---\n")...)
+	newObj, err := yaml.Marshal(fileObjs[index])
+	if err != nil {
+		return nil, err
 	}
-	return body, nil
+	fileData := strings.Replace(string(data), string(oldObj), string(newObj), -1)
+	return []byte(fileData), nil
 }
