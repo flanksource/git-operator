@@ -46,13 +46,14 @@ var (
 	k8s    *kubernetes.Clientset
 	crdK8s crdclient.Client
 	tests  = map[string]Test{
-		"git-operator-is-running":  TestGitOperatorIsRunning,
-		"github-branch-sync":       TestGithubBranchSync,
-		"github-pr-github-sync":    TestGithubPRSync,
-		"github-pr-crd-sync":       TestGithubPRCRDSync,
-		"github-gitops-api-create": TestGitopsAPICreate,
-		"github-gitops-api-update": TestGitopsAPIUpdate,
-		"github-gitops-api-delete": TestGitopsAPIDelete,
+		"git-operator-is-running":           TestGitOperatorIsRunning,
+		"github-branch-sync":                TestGithubBranchSync,
+		"github-pr-github-sync":             TestGithubPRSync,
+		"github-pr-crd-sync":                TestGithubPRCRDSync,
+		"github-gitops-api-create":          TestGitopsAPICreate,
+		"github-gitops-api-update":          TestGitopsAPIOrUpdate,
+		"github-gitops-api-delete-multiple": TestGitopsAPIDeleteMultiple,
+		"github-gitops-api-delete":          TestGitopsAPIDelete,
 	}
 	scheme              = runtime.NewScheme()
 	log                 = ctrl.Log.WithName("e2e")
@@ -199,7 +200,7 @@ func TestGitopsAPICreate(ctx context.Context, test *console.TestResults) error {
 	return err
 }
 
-func TestGitopsAPIUpdate(ctx context.Context, test *console.TestResults) error {
+func TestGitopsAPIOrUpdate(ctx context.Context, test *console.TestResults) error {
 	git, err := connectors.NewConnector(ctx, crdK8s, k8s, log, "platform-system", "https://github.com/"+repository, &v1.LocalObjectReference{
 		Name: "github",
 	})
@@ -208,19 +209,41 @@ func TestGitopsAPIUpdate(ctx context.Context, test *console.TestResults) error {
 	}
 	branchName := getBranchName("test")
 	body := `
-	[
-	{
-		"apiVersion": "v1",
-    	"data": {
-        	"some-key": "some-value",
-			"new-key": "new-value"
-    	},
-		"kind": "ConfigMap",
-    	"metadata": {
-        	"name": "test-configmap",
-        	"namespace": "default"
+	[	
+		{
+			"apiVersion": "v1",
+			"data": {
+				"some-key": "some-value",
+				"new-key": "new-value"
+			},
+			"kind": "ConfigMap",
+			"metadata": {
+				"name": "test-configmap",
+				"namespace": "default"
+			}
+		},
+		{
+		  "apiVersion": "acmp.corp/v1",
+		  "kind": "NamespaceRequest",
+		  "metadata": {
+			"name": "tenant8"
+		  },
+		  "spec": {
+			"cluster": "dev01",
+			"memory": 11,
+			"some-new-key": "test-value"
+		  }
+		},
+		{
+		  "apiVersion": "v1",
+		  "data": {
+			"some-key": "some-value"
+		  },
+		  "kind": "ConfigMap",
+		  "metadata": {
+			"name": "sample-configmap"
+		  }
 		}
-	}
 	]
 	`
 	api := &gitv1.GitopsAPI{
@@ -230,7 +253,7 @@ func TestGitopsAPIUpdate(ctx context.Context, test *console.TestResults) error {
 			SearchPath:    "resources/",
 			Kustomization: "resources/kustomization.yaml",
 			PullRequest: &gitv1.PullRequestTemplate{
-				Title: "Automated PR: Updated existing object {{.metadata.name}}",
+				Title: "Updating/Creating multiple objects",
 				Body:  "Somebody created a new PR {{.metadata.name}}",
 			},
 		},
@@ -270,18 +293,16 @@ func TestGitopsAPIDelete(ctx context.Context, test *console.TestResults) error {
 	branchName := getBranchName("test")
 	body := `
 	[
-	{
-        "apiVersion": "v1",
-    	"data": {
-        	"some-key": "some-value",
-			"new-key": "new-value"
-    	},
-		"kind": "ConfigMap",
-    	"metadata": {
-        	"name": "test-configmap",
-        	"namespace": "default"
+		{
+		  "apiVersion": "v1",
+		  "data": {
+			"some-key": "some-value"
+		  },
+		  "kind": "ConfigMap",
+		  "metadata": {
+			"name": "some-configmap"
+		  }
 		}
-	}
 	]
 	`
 	log.Info("json", "value", body)
@@ -291,7 +312,77 @@ func TestGitopsAPIDelete(ctx context.Context, test *console.TestResults) error {
 			Branch:        branchName,
 			SearchPath:    "resources/",
 			PullRequest: &gitv1.PullRequestTemplate{
-				Title: "Automated PR: Delete object {{.metadata.name}}",
+				Title: "Automated PR: Delete single object",
+				Body:  "Somebody created a new PR {{.metadata.name}}",
+			},
+		},
+	}
+	work, title, err := controllers.DeleteObject(ctx, log, git, api, bytes.NewReader([]byte(body)), "application/json")
+	if err != nil {
+		return err
+	}
+	_, err = controllers.CreateCommit(api, work, title)
+	if err != nil {
+		return err
+	}
+
+	if err = git.Push(ctx, fmt.Sprintf("%s:%s", api.Spec.Branch, api.Spec.Base)); err != nil {
+		return err
+	}
+	pr, err := git.OpenPullRequest(ctx, api.Spec.Base, api.Spec.Branch, api.Spec.PullRequest)
+	if err != nil {
+		return err
+	}
+	if pr != 0 {
+		if err := git.ClosePullRequest(ctx, pr); err != nil {
+			return err
+		}
+	}
+	return err
+}
+
+func TestGitopsAPIDeleteMultiple(ctx context.Context, test *console.TestResults) error {
+	git, err := connectors.NewConnector(ctx, crdK8s, k8s, log, "platform-system", "https://github.com/"+repository, &v1.LocalObjectReference{
+		Name: "github",
+	})
+	if err != nil {
+		return err
+	}
+	branchName := getBranchName("test")
+	body := `
+	[
+		{
+		  "apiVersion": "v1",
+		  "data": {
+			"some-key": "some-value"
+		  },
+		  "kind": "ConfigMap",
+		  "metadata": {
+			"name": "some-configmap"
+		  }
+		},
+		{
+		  "apiVersion": "acmp.corp/v1",
+		  "kind": "NamespaceRequest",
+		  "metadata": {
+			"name": "tenant8"
+		  },
+		  "spec": {
+			"cluster": "dev01",
+			"memory": 11,
+			"some-new-key": "test-value"
+		  }
+		}
+	]
+	`
+	log.Info("json", "value", body)
+	api := &gitv1.GitopsAPI{
+		Spec: gitv1.GitopsAPISpec{
+			GitRepository: repository,
+			Branch:        branchName,
+			SearchPath:    "resources/",
+			PullRequest: &gitv1.PullRequestTemplate{
+				Title: "Automated PR: Delete multiple objects",
 				Body:  "Somebody created a new PR {{.metadata.name}}",
 			},
 		},
@@ -345,7 +436,7 @@ func TestGithubBranchSync(ctx context.Context, test *console.TestResults) error 
 	}
 	test.Passf("TestGithubBranchSync", "Successfully created branch %s", branchName)
 
-	gitBranchGetCtx, cancelFunc := context.WithTimeout(ctx, 3*time.Minute)
+	gitBranchGetCtx, cancelFunc := context.WithTimeout(ctx, 4*time.Minute)
 	defer cancelFunc()
 	crdName := fmt.Sprintf("gitrepository-sample-%s", branchName)
 	gitBranch, err := waitForGitBranch(gitBranchGetCtx, crdName)
@@ -407,7 +498,7 @@ func TestGithubPRSync(ctx context.Context, test *console.TestResults) error {
 		return err
 	}
 
-	gitPRGetCtx, cancelFunc := context.WithTimeout(ctx, 3*time.Minute)
+	gitPRGetCtx, cancelFunc := context.WithTimeout(ctx, 4*time.Minute)
 	defer cancelFunc()
 	crdName := fmt.Sprintf("gitrepository-sample-%d", *pr.Number)
 	gitPR, err := waitForGitPullRequest(gitPRGetCtx, crdName)
@@ -502,7 +593,7 @@ func TestGithubPRCRDSync(ctx context.Context, test *console.TestResults) error {
 		return err
 	}
 
-	gitPRGetCtx, cancelFunc := context.WithTimeout(ctx, 3*time.Minute)
+	gitPRGetCtx, cancelFunc := context.WithTimeout(ctx, 4*time.Minute)
 	defer cancelFunc()
 	gitPR, err := waitForGitPullRequestFromCrd(gitPRGetCtx, branchName)
 	if err != nil {

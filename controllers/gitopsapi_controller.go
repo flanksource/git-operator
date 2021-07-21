@@ -144,7 +144,10 @@ func GetKustomizaton(fs billy.Filesystem, path string) (*types.Kustomization, er
 	if err != nil {
 		return nil, err
 	}
-	existingKustomization, _ := ioutil.ReadAll(existing)
+	existingKustomization, err := ioutil.ReadAll(existing)
+	if err != nil {
+		return nil, err
+	}
 	if err := yaml.Unmarshal(existingKustomization, &kustomization); err != nil {
 		return nil, err
 	}
