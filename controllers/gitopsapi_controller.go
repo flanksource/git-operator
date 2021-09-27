@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/gosimple/slug"
 	"github.com/labstack/gommon/random"
+	"github.com/pkg/errors"
 
 	"github.com/flanksource/kommons"
 	"github.com/go-git/go-billy/v5"
@@ -76,6 +78,7 @@ func serve(c echo.Context, r *GitopsAPIReconciler) error {
 	namespace := c.Param("namespace")
 	token := c.Param("token")
 	deleteObj := strings.HasPrefix(c.Path(), "/_delete")
+	getObj := strings.HasPrefix(c.Path(), "/_get")
 	if token == "" {
 		token = c.QueryParam("token")
 	}
@@ -109,6 +112,21 @@ func serve(c echo.Context, r *GitopsAPIReconciler) error {
 	var pr int
 	if deleteObj {
 		work, title, err = DeleteObject(ctx, r.Log, git, &api, c.Request().Body, contentType)
+	} else if getObj {
+		kind := c.QueryParam("kind")
+		name := c.QueryParam("name")
+		namespace := c.QueryParam("namespace")
+		accept := c.Request().Header.Get("Accept")
+		if accept == "" {
+			accept = "application/json"
+		}
+
+		body, err := GetObject(ctx, c.Request(), r.Log, git, &api, accept, kind, name, namespace)
+		if err != nil {
+			return c.String(http.StatusInternalServerError, err.Error())
+		}
+		c.Response().Header().Set("Content-Type", accept)
+		return c.String(http.StatusOK, string(body))
 	} else {
 		work, title, err = CreateOrUpdateObject(ctx, r.Log, git, &api, c.Request().Body, contentType)
 	}
@@ -316,6 +334,68 @@ func DeleteObject(ctx context.Context, logger logr.Logger, git connectors.Connec
 	return work, title, nil
 }
 
+func GetObject(ctx context.Context, req *http.Request, logger logr.Logger, git connectors.Connector, api *gitv1.GitopsAPI, contentType, kind, name, namespace string) ([]byte, error) {
+	obj, err := GetObjectWithKindNameNamespace(ctx, logger, git, api, kind, name, namespace)
+	if err != nil {
+		return nil, err
+	}
+	if contentType == "application/json" {
+		body, err := json.Marshal(obj.Object)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to marshal json")
+		}
+		return body, nil
+	} else if contentType == "application/yaml" {
+		body, err := yaml.Marshal(obj.Object)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to marshal json")
+		}
+		return body, nil
+	}
+
+	return nil, errors.Errorf("Content-Type %s not supproted", contentType)
+}
+
+func GetObjectWithKindNameNamespace(ctx context.Context, logger logr.Logger, git connectors.Connector, api *gitv1.GitopsAPI, kind, name, namespace string) (*unstructured.Unstructured, error) {
+	addDefaults(api)
+	fs, _, err := git.Clone(ctx, api.Spec.Base, api.Spec.Branch)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to clone repository")
+	}
+	var contentPaths map[string]string
+	if api.Spec.SearchPath != "" {
+		contentPaths, err = getContentPaths(fs.Root(), api.Spec.SearchPath)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get content paths")
+		}
+	}
+
+	fakeObj := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"kind": kind,
+			"metadata": map[string]interface{}{
+				"name":      name,
+				"namespace": namespace,
+			},
+		},
+	}
+
+	contentPath, err := getContentPath(api, fakeObj, contentPaths)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get content path for %s/%s/%s", kind, namespace, name)
+	}
+	if contentPath == "" {
+		return nil, fmt.Errorf("could not find the object %s/%s/%s", kind, namespace, name)
+	}
+
+	obj, err := getObjectFromFile(filepath.Join(fs.Root(), contentPath), fakeObj)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get object from file")
+	}
+
+	return obj, nil
+}
+
 func (r *GitopsAPIReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	clientset, err := kubernetes.NewForConfig(mgr.GetConfig())
 	if err != nil {
@@ -452,6 +532,22 @@ func performStrategicMerge(file string, obj *unstructured.Unstructured) (body []
 	}
 	body = []byte(strings.Replace(string(data), string(oldObj), string(newObj), -1))
 	return
+}
+
+func getObjectFromFile(file string, obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+	data, err := ioutil.ReadFile(file)
+	if err != nil {
+		return nil, err
+	}
+	fileObjs, err := kommons.GetUnstructuredObjects(data)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get unstructured objects")
+	}
+	index := getObjectIndex(obj, fileObjs)
+	if index == -1 {
+		return nil, errors.Errorf("object %s/%s/%s not found", obj.GetKind(), obj.GetNamespace(), obj.GetKind())
+	}
+	return fileObjs[index], nil
 }
 
 func deleteObjectFromFile(file string, obj *unstructured.Unstructured) (body []byte, err error) {
