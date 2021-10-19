@@ -422,6 +422,9 @@ func (r *GitopsAPIReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	e.POST("/_delete/:namespace/:name/:token", func(c echo.Context) error {
 		return serve(c, r)
 	})
+	e.GET("/_get/:namespace/:name/:token", func(c echo.Context) error {
+		return serve(c, r)
+	})
 	go func() {
 		e.Logger.Fatal(e.Start(":8888"))
 	}()

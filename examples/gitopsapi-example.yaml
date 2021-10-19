@@ -41,7 +41,8 @@ spec:
   gitRepository: https://github.com/flanksource/git-operator-test.git
   path: spec/configmaps/{{.metadata.name}}.yaml
   kustomization: spec/configmaps/kustomization.yaml
-  pullRequest: true
+  pullRequest:
+    body: "automated PR"
   reviewers: ["flankbot"]
   secretRef:
     name: github-token
