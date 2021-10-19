@@ -790,7 +790,7 @@ spec:
         - --log-level=debug
         command:
         - /git-operator
-        image: flanksource/git-operator:v1
+        image: flanksource/git-operator:dev
         imagePullPolicy: IfNotPresent
         name: git-operator
         resources:
