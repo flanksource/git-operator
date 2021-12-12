@@ -5,7 +5,7 @@ on:
       - master
   pull_request:
     paths:
-      - '**.go'
+      - "**.go"
 jobs:
   golangci:
     name: lint
@@ -19,6 +19,7 @@ jobs:
           version: v1.36
       - name: Check auto-generated files
         run: |
+          which controller-gen && rm $(which controller-gen)
           make resources
           git diff
           changed_files=$(git status -s)
