@@ -1,6 +1,6 @@
 module github.com/flanksource/git-operator
 
-go 1.14
+go 1.17
 
 require (
 	github.com/flanksource/commons v1.5.6
