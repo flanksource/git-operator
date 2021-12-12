@@ -25,16 +25,13 @@ import (
 	"go.uber.org/zap/zapcore"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/flanksource/commons/logger"
 	gitv1 "github.com/flanksource/git-operator/api/v1"
 	"github.com/flanksource/git-operator/controllers"
-	"github.com/flanksource/kommons"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -96,31 +93,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	clientset, err := kubernetes.NewForConfig(mgr.GetConfig())
-	if err != nil {
-		setupLog.Error(err, "failed to create clientset")
-		os.Exit(1)
-	}
-
-	kommonsClient := kommons.NewClient(mgr.GetConfig(), logger.StandardLogger())
-
-	if err = (&controllers.GitRepositoryReconciler{
-		Client:    mgr.GetClient(),
-		Clientset: clientset,
-		Log:       ctrl.Log.WithName("controllers").WithName("GitRepository"),
-		Scheme:    mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "GitRepository")
-		os.Exit(1)
-	}
-	if err = (&controllers.GitPullRequestReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("GitPullRequest"),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "GitPullRequest")
-		os.Exit(1)
-	}
 	if err = (&controllers.GitopsAPIReconciler{
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("controllers").WithName("GitopsAPI"),
@@ -129,16 +101,7 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "GitopsAPI")
 		os.Exit(1)
 	}
-	if err = (&controllers.GitOpsReconciler{
-		Client:        mgr.GetClient(),
-		Clientset:     clientset,
-		KommonsClient: kommonsClient,
-		Log:           ctrl.Log.WithName("controllers").WithName("Gitops"),
-		Scheme:        mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Gitops")
-		os.Exit(1)
-	}
+
 	// +kubebuilder:scaffold:builder
 
 	setupLog.Info("starting manager")
