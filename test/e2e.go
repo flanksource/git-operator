@@ -14,11 +14,8 @@ import (
 	gitv1 "github.com/flanksource/git-operator/api/v1"
 	"github.com/flanksource/git-operator/connectors"
 	"github.com/flanksource/git-operator/controllers"
-	"github.com/google/go-github/v32/github"
 	"github.com/pkg/errors"
 	zapu "go.uber.org/zap"
-	"golang.org/x/oauth2"
-	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -35,8 +32,6 @@ import (
 const (
 	namespace  = "platform-system"
 	repository = "flanksource/git-operator-test"
-	owner      = "flanksource"
-	repoName   = "git-operator-test"
 )
 
 var (
@@ -49,17 +44,11 @@ var (
 		"github-gitops-api-delete-multiple": TestGitopsAPIDeleteMultiple,
 		"github-gitops-api-delete":          TestGitopsAPIDelete,
 	}
-	scheme              = runtime.NewScheme()
-	log                 = ctrl.Log.WithName("e2e")
-	pullRequestUsername string
+	scheme = runtime.NewScheme()
+	log    = ctrl.Log.WithName("e2e")
 )
 
 type Test func(context.Context, *console.TestResults) error
-type DeferFunc func()
-
-func init() {
-	pullRequestUsername = os.Getenv("GITHUB_USERNAME")
-}
 
 func main() {
 	var timeout *time.Duration
@@ -158,7 +147,7 @@ func TestGitopsAPICreate(ctx context.Context, test *console.TestResults) error {
 		 }
 	}
 	]
-	`, getBranchName("test"))
+	`, getBranchName())
 
 	log.Info("json", "value", body)
 	api := &gitv1.GitopsAPI{
@@ -201,7 +190,7 @@ func TestGitopsAPIOrUpdate(ctx context.Context, test *console.TestResults) error
 	if err != nil {
 		return err
 	}
-	branchName := getBranchName("test")
+	branchName := getBranchName()
 	body := `
 	[
 		{
@@ -284,7 +273,7 @@ func TestGitopsAPIDelete(ctx context.Context, test *console.TestResults) error {
 	if err != nil {
 		return err
 	}
-	branchName := getBranchName("test")
+	branchName := getBranchName()
 	body := `
 	[
 		{
@@ -342,7 +331,7 @@ func TestGitopsAPIDeleteMultiple(ctx context.Context, test *console.TestResults)
 	if err != nil {
 		return err
 	}
-	branchName := getBranchName("test")
+	branchName := getBranchName()
 	body := `
 	[
 		{
@@ -419,48 +408,8 @@ func TestGitOperatorIsRunning(ctx context.Context, test *console.TestResults) er
 	return nil
 }
 
-func assertEquals(test *console.TestResults, name, actual, expected string) error { // nolint: unparam
-	if actual != expected {
-		test.Failf(name, "expected %s to equal %s", actual, expected)
-		return errors.Errorf("Test %s expected %s to equal %s", name, actual, expected)
-	}
-	return nil
-}
-
-func assertInterfaceEquals(test *console.TestResults, name string, actual, expected interface{}) error {
-	actualYml, err := yaml.Marshal(actual)
-	if err != nil {
-		return errors.Wrap(err, "failed to marshal actual")
-	}
-
-	expectedYml, err := yaml.Marshal(expected)
-	if err != nil {
-		return errors.Wrap(err, "failed to marshal expected")
-	}
-
-	if string(actualYml) != string(expectedYml) {
-		test.Failf("Test %s expected: %s\n\nTo Equal:\n%s\n", name, string(actualYml), string(expectedYml))
-		return errors.Errorf("Test %s expected:\n%s\nTo Match:\n%s\n", name, actualYml, expectedYml)
-	}
-
-	return nil
-}
-
-func getBranchName(baseName string) string {
+func getBranchName() string {
 	date := time.Now().Format("20060201150405")
 	hash := utils.RandomString(4)
-	return fmt.Sprintf("%s-%s-%s", baseName, date, hash)
-}
-
-func githubClient(ctx context.Context) (*github.Client, error) {
-	authToken := os.Getenv("GITHUB_TOKEN")
-	if authToken == "" {
-		return nil, errors.New("GITHUB_TOKEN not provided")
-	}
-	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: authToken},
-	)
-	tc := oauth2.NewClient(ctx, ts)
-	client := github.NewClient(tc)
-	return client, nil
+	return fmt.Sprintf("test-%s-%s", date, hash)
 }

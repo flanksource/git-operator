@@ -75,7 +75,3 @@ func NewGitSSH(client client.Client, log logr.Logger, url, user string, privateK
 	}
 	return github, nil
 }
-
-func (g *GitSSH) branchName(repository string, branch string) string {
-	return fmt.Sprintf("%s-%s", repository, branch)
-}
